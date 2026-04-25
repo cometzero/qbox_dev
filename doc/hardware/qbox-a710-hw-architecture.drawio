@@ -1,0 +1,96 @@
+<mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="950" math="0" shadow="0">
+  <root>
+    <mxCell id="0"/>
+    <mxCell id="1" parent="0"/>
+    <mxCell id="title" value="QBox Buildroot A710 SoC M1 Hardware Architecture" style="text;html=1;strokeColor=none;fillColor=none;fontSize=22;fontStyle=1" vertex="1" parent="1">
+      <mxGeometry x="40" y="20" width="760" height="40" as="geometry"/>
+    </mxCell>
+    <mxCell id="platform" value="QBox platform/buildroot" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;arcSize=8" vertex="1" parent="1">
+      <mxGeometry x="40" y="80" width="1280" height="760" as="geometry"/>
+    </mxCell>
+    <mxCell id="qemu" value="QemuInstance&lt;br&gt;AARCH64 / TCG MULTI" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+      <mxGeometry x="80" y="130" width="200" height="70" as="geometry"/>
+    </mxCell>
+    <mxCell id="router" value="router&lt;br&gt;TLM address decode" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+      <mxGeometry x="540" y="390" width="180" height="70" as="geometry"/>
+    </mxCell>
+    <mxCell id="cpu_cluster" value="A710 application cluster&lt;br&gt;2 clusters x 2 cores" style="swimlane;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1" vertex="1" parent="1">
+      <mxGeometry x="80" y="250" width="340" height="220" as="geometry"/>
+    </mxCell>
+    <mxCell id="cpu0" value="CPU0&lt;br&gt;Cortex-A710&lt;br&gt;MPIDR 0x000&lt;br&gt;boot CPU" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450" vertex="1" parent="1">
+      <mxGeometry x="110" y="300" width="130" height="70" as="geometry"/>
+    </mxCell>
+    <mxCell id="cpu1" value="CPU1&lt;br&gt;Cortex-A710&lt;br&gt;MPIDR 0x001" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450" vertex="1" parent="1">
+      <mxGeometry x="260" y="300" width="130" height="70" as="geometry"/>
+    </mxCell>
+    <mxCell id="cpu2" value="CPU2&lt;br&gt;Cortex-A710&lt;br&gt;MPIDR 0x100" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450" vertex="1" parent="1">
+      <mxGeometry x="110" y="385" width="130" height="70" as="geometry"/>
+    </mxCell>
+    <mxCell id="cpu3" value="CPU3&lt;br&gt;Cortex-A710&lt;br&gt;MPIDR 0x101" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450" vertex="1" parent="1">
+      <mxGeometry x="260" y="385" width="130" height="70" as="geometry"/>
+    </mxCell>
+    <mxCell id="gic" value="GICv3&lt;br&gt;Distributor 0x17A00000&lt;br&gt;Redistributors 0x17A60000" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" vertex="1" parent="1">
+      <mxGeometry x="500" y="160" width="260" height="90" as="geometry"/>
+    </mxCell>
+    <mxCell id="uart" value="PL011 UART0 console&lt;br&gt;0x10000000 / 4 KiB&lt;br&gt;GIC SPI 379" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1" vertex="1" parent="1">
+      <mxGeometry x="880" y="140" width="240" height="80" as="geometry"/>
+    </mxCell>
+    <mxCell id="virtio_net" value="virtio-mmio-net&lt;br&gt;0x1C120000 / 64 KiB&lt;br&gt;GIC SPI 18" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" vertex="1" parent="1">
+      <mxGeometry x="880" y="260" width="240" height="80" as="geometry"/>
+    </mxCell>
+    <mxCell id="gpex" value="qemu_gpex PCIe host&lt;br&gt;PIO 0x60200000&lt;br&gt;MMIO 0x60300000&lt;br&gt;ECAM 0x43B50000&lt;br&gt;High MMIO 0x400000000" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" vertex="1" parent="1">
+      <mxGeometry x="880" y="380" width="260" height="120" as="geometry"/>
+    </mxCell>
+    <mxCell id="dram" value="DRAM gs_memory&lt;br&gt;0x80000000 - 0x17FFFFFFF&lt;br&gt;4 GiB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1" vertex="1" parent="1">
+      <mxGeometry x="480" y="570" width="280" height="90" as="geometry"/>
+    </mxCell>
+    <mxCell id="loader" value="loader&lt;br&gt;Image.bin @ 0x81200000&lt;br&gt;DTB @ 0x87600000&lt;br&gt;rootfs.cpio @ 0x8A800000&lt;br&gt;bootloader @ 0x80000000" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1" vertex="1" parent="1">
+      <mxGeometry x="80" y="580" width="270" height="120" as="geometry"/>
+    </mxCell>
+    <mxCell id="sram" value="Reserved SRAM windows in DTB&lt;br&gt;A710 1 MiB @ 0x00400000&lt;br&gt;R52 2 MiB @ 0x00500000&lt;br&gt;R52 2 MiB @ 0x00700000&lt;br&gt;M55 1 MiB @ 0x00900000&lt;br&gt;Shared 2 MiB @ 0x00A00000" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+      <mxGeometry x="830" y="590" width="320" height="140" as="geometry"/>
+    </mxCell>
+    <mxCell id="future" value="Future milestones&lt;br&gt;2 x Cortex-R52 + 2 UARTs&lt;br&gt;1 x Cortex-M55 + 1 UART&lt;br&gt;SystemC/TLM device models" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1" vertex="1" parent="1">
+      <mxGeometry x="80" y="730" width="360" height="80" as="geometry"/>
+    </mxCell>
+    <mxCell id="e_qemu_cpu" value="owns CPUs" style="endArrow=block;html=1;rounded=0;strokeColor=#6c8ebf" edge="1" parent="1" source="qemu" target="cpu_cluster">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="e_cpu_router" value="memory transactions" style="endArrow=block;html=1;rounded=0;strokeColor=#9673a6" edge="1" parent="1" source="cpu_cluster" target="router">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="e_gic_cpu" value="IRQ/FIQ/vIRQ/vFIQ" style="endArrow=block;html=1;rounded=0;strokeColor=#82b366" edge="1" parent="1" source="gic" target="cpu_cluster">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="e_router_gic" value="MMIO" style="endArrow=block;html=1;rounded=0;strokeColor=#d6b656" edge="1" parent="1" source="router" target="gic">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="e_router_uart" value="MMIO" style="endArrow=block;html=1;rounded=0;strokeColor=#d6b656" edge="1" parent="1" source="router" target="uart">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="e_uart_gic" value="SPI 379" style="endArrow=block;html=1;rounded=0;strokeColor=#b85450" edge="1" parent="1" source="uart" target="gic">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="e_router_net" value="MMIO" style="endArrow=block;html=1;rounded=0;strokeColor=#d6b656" edge="1" parent="1" source="router" target="virtio_net">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="e_net_gic" value="SPI 18" style="endArrow=block;html=1;rounded=0;strokeColor=#82b366" edge="1" parent="1" source="virtio_net" target="gic">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="e_router_gpex" value="PIO/MMIO/ECAM" style="endArrow=block;html=1;rounded=0;strokeColor=#d6b656" edge="1" parent="1" source="router" target="gpex">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="e_gpex_gic" value="SPI 541-544" style="endArrow=block;html=1;rounded=0;strokeColor=#82b366" edge="1" parent="1" source="gpex" target="gic">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="e_router_dram" value="DRAM window" style="endArrow=block;html=1;rounded=0;strokeColor=#d6b656" edge="1" parent="1" source="router" target="dram">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="e_loader_dram" value="preload boot artifacts" style="endArrow=block;html=1;rounded=0;strokeColor=#d79b00" edge="1" parent="1" source="loader" target="dram">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="e_sram_router" value="reserved in DTB; future explicit models" style="endArrow=block;html=1;dashed=1;rounded=0;strokeColor=#d6b656" edge="1" parent="1" source="sram" target="router">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+  </root>
+</mxGraphModel>
