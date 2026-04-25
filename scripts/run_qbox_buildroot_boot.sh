@@ -5,7 +5,7 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 qbox_root=${QBOX_ROOT:-"${repo_root}/qbox"}
 vp=${QBOX_PLATFORMS_VP:-"${qbox_root}/build/platforms-vp"}
 log_dir=${QBOX_VERIFICATION_DIR:-"${repo_root}/build/verification"}
-timeout_s=${QBOX_BOOT_TIMEOUT:-120}
+timeout_s=${QBOX_BOOT_TIMEOUT:-0}
 log_path=${QBOX_BOOT_LOG:-"${log_dir}/qbox-a710-buildroot-boot.log"}
 if [[ "${log_path}" != /* ]]; then
   log_path="${repo_root}/${log_path}"
@@ -38,7 +38,38 @@ for module in "${required_modules[@]}"; do
 done
 
 mkdir -p "$(dirname "${log_path}")"
+
+run_cmd=("${vp}" -l platforms/buildroot/conf_aarch64.lua)
+if [[ "${timeout_s}" != "0" ]]; then
+  run_cmd=(timeout --signal=SIGQUIT "${timeout_s}s" "${run_cmd[@]}")
+fi
+
+if [[ "${timeout_s}" == "0" ]]; then
+  timeout_msg="disabled; interactive run continues until Ctrl-C"
+else
+  timeout_msg="${timeout_s}s"
+fi
+
+cat >&2 <<EOF_MSG
+Streaming QBox UART log to stdout.
+Log file: ${log_path}
+Timeout: ${timeout_msg}
+At the Buildroot login prompt: user=root, no password.
+Exit the shell with: exit  (or Ctrl-D). Stop QBox simulation with: Ctrl-C.
+EOF_MSG
+
 cd "${qbox_root}"
-timeout --signal=SIGQUIT "${timeout_s}s" \
-  "${vp}" -l platforms/buildroot/conf_aarch64.lua \
-  2>&1 | tee "${log_path}"
+
+# When launched from a real terminal, run through a pseudo-TTY so QBox/SystemC
+# and the guest UART flush output immediately while still recording the log.
+# In non-interactive CI/Codex runs, fall back to line-buffering plus tee.
+if [[ -t 0 && -t 1 && "${QBOX_BOOT_PTY:-1}" != "0" ]] && command -v script >/dev/null 2>&1; then
+  quoted_cmd=$(printf '%q ' "${run_cmd[@]}")
+  script -qefc "${quoted_cmd% }" "${log_path}"
+else
+  if command -v stdbuf >/dev/null 2>&1; then
+    stdbuf -oL -eL "${run_cmd[@]}" 2>&1 | tee "${log_path}"
+  else
+    "${run_cmd[@]}" 2>&1 | tee "${log_path}"
+  fi
+fi
