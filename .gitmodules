@@ -5,9 +5,9 @@
 	path = sources/buildroot
 	url = https://gitlab.com/buildroot.org/buildroot.git
 	branch = 2026.02.1
-	shallow = true
+	shallow = false
 [submodule "sources/linux"]
 	path = sources/linux
 	url = https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
-	branch = v7.0
-	shallow = true
+	branch = master
+	shallow = false
