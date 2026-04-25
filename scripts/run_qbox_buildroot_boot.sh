@@ -63,9 +63,14 @@ cd "${qbox_root}"
 # Run through a pseudo-TTY by default so QBox/SystemC keeps stdio-backed UARTs
 # alive and flushes guest output immediately while still recording the log. This
 # matters even in non-interactive CI/Codex runs: without a PTY, QBox can observe
-# stdin EOF and stop before the login prompt. Set QBOX_BOOT_PTY=0 to force the
-# plain line-buffered path.
-if [[ "${QBOX_BOOT_PTY:-1}" != "0" ]] && command -v script >/dev/null 2>&1; then
+# stdin EOF and stop before the login prompt. Use the repo-local Python runner
+# first because util-linux script(1) can propagate a transient stdin EOF/HUP to
+# the child PTY on the first cold run after a rebuild. Set QBOX_BOOT_PTY=0 to
+# force the plain line-buffered path.
+pty_runner="${repo_root}/scripts/qbox_pty_runner.py"
+if [[ "${QBOX_BOOT_PTY:-1}" != "0" ]] && command -v python3 >/dev/null 2>&1 && [[ -x "${pty_runner}" ]]; then
+  python3 "${pty_runner}" --log "${log_path}" -- "${run_cmd[@]}"
+elif [[ "${QBOX_BOOT_PTY:-1}" != "0" ]] && command -v script >/dev/null 2>&1; then
   quoted_cmd=$(printf '%q ' "${run_cmd[@]}")
   script -qefc "${quoted_cmd% }" "${log_path}"
 else
