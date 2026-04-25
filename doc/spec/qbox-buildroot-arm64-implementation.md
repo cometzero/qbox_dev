@@ -3,7 +3,7 @@
 ## Preconditions
 
 - Current working directory: `/build/qbox_dev`.
-- QBox submodule present at `qbox/`.
+- QBox submodule present at `sources/qbox/`.
 - Buildroot source submodule present at `sources/buildroot/`.
 - Linux source submodule present at `sources/linux/`.
 - QBox branch checked out as intended for development.
@@ -110,7 +110,7 @@ Pass criteria:
 Create:
 
 ```text
-qbox/platforms/buildroot/
+sources/qbox/platforms/buildroot/
   conf_aarch64.lua
   fw/
     arm64_bootloader.lua
@@ -119,8 +119,8 @@ qbox/platforms/buildroot/
 
 Implementation steps:
 
-1. Copy `qbox/platforms/ubuntu/conf_aarch64.lua` to the Buildroot platform.
-2. Copy or reuse `qbox/platforms/ubuntu/fw/arm64_bootloader.lua`.
+1. Copy `sources/qbox/platforms/ubuntu/conf_aarch64.lua` to the Buildroot platform.
+2. Copy or reuse `sources/qbox/platforms/ubuntu/fw/arm64_bootloader.lua`.
 3. Change CPU count from 8 to 4.
 4. Change CPU model from `cpu_arm_cortexA76` to `cpu_arm_cortexA710`.
 5. Change loaded artifact names:
@@ -133,7 +133,7 @@ Verification:
 
 ```bash
 rg -n 'ARM_NUM_CPUS|cpu_arm_cortexA710|qbox_a710_soc.dtb|rootfs.cpio' \
-  qbox/platforms/buildroot/conf_aarch64.lua
+  sources/qbox/platforms/buildroot/conf_aarch64.lua
 ```
 
 ## Phase 3: artifact staging
@@ -145,19 +145,19 @@ Minimum shell shape:
 
 ```bash
 install -D build/linux-a710/arch/arm64/boot/Image \
-  qbox/platforms/buildroot/fw/Artifacts/Image.bin
+  sources/qbox/platforms/buildroot/fw/Artifacts/Image.bin
 install -D build/buildroot-a710/images/qbox_a710_soc.dtb \
-  qbox/platforms/buildroot/fw/Artifacts/qbox_a710_soc.dtb
+  sources/qbox/platforms/buildroot/fw/Artifacts/qbox_a710_soc.dtb
 install -D build/buildroot-a710/images/rootfs.cpio \
-  qbox/platforms/buildroot/fw/Artifacts/rootfs.cpio
+  sources/qbox/platforms/buildroot/fw/Artifacts/rootfs.cpio
 ```
 
 Pass criteria:
 
 ```bash
-ls -l qbox/platforms/buildroot/fw/Artifacts/Image.bin \
-      qbox/platforms/buildroot/fw/Artifacts/qbox_a710_soc.dtb \
-      qbox/platforms/buildroot/fw/Artifacts/rootfs.cpio
+ls -l sources/qbox/platforms/buildroot/fw/Artifacts/Image.bin \
+      sources/qbox/platforms/buildroot/fw/Artifacts/qbox_a710_soc.dtb \
+      sources/qbox/platforms/buildroot/fw/Artifacts/rootfs.cpio
 ```
 
 ## Phase 4: QBox build
@@ -165,14 +165,14 @@ ls -l qbox/platforms/buildroot/fw/Artifacts/Image.bin \
 Use the existing preset or an explicit build directory:
 
 ```bash
-cd /build/qbox_dev/qbox
+cd /build/qbox_dev/sources/qbox
 cmake --preset gcc -DLIBQEMU_TARGETS=aarch64
 cmake --build --preset gcc --parallel
 ```
 
 Pass criteria:
 
-- `qbox/build/platforms-vp` exists.
+- `sources/qbox/build/platforms-vp` exists.
 - AArch64 QEMU target libraries are present in the build/install output.
 
 ## Phase 5: first boot smoke
@@ -181,7 +181,7 @@ Run:
 
 ```bash
 mkdir -p /build/qbox_dev/build/verification
-cd /build/qbox_dev/qbox
+cd /build/qbox_dev/sources/qbox
 timeout --signal=SIGQUIT 120s \
   ./build/platforms-vp -l platforms/buildroot/conf_aarch64.lua \
   2>&1 | tee /build/qbox_dev/build/verification/qbox-a710-buildroot-boot.log
@@ -248,18 +248,18 @@ The report must include:
 | `buildroot/external/qbox_arm64/` | Buildroot rootfs/DTB lane. |
 | `sources/buildroot/` | Buildroot upstream source submodule. |
 | `sources/linux/` | Linux upstream source submodule. |
-| `qbox/platforms/buildroot/` | QBox platform lane. |
+| `sources/qbox/platforms/buildroot/` | QBox platform lane. |
 | `scripts/` | Workspace helper scripts only. |
 | `doc/` | Plans, specs, and verification reports. |
-| `qbox/platforms/ubuntu/` | Existing Ubuntu lane; avoid changes unless explicitly approved. |
+| `sources/qbox/platforms/ubuntu/` | Existing Ubuntu lane; avoid changes unless explicitly approved. |
 
 ## Rollback plan
 
 If the Buildroot lane breaks the workspace:
 
-1. Remove or revert `qbox/platforms/buildroot/` changes.
+1. Remove or revert `sources/qbox/platforms/buildroot/` changes.
 2. Remove Buildroot artifact staging outputs.
-3. Keep `qbox/platforms/ubuntu/` untouched.
+3. Keep `sources/qbox/platforms/ubuntu/` untouched.
 4. Re-run `bash scripts/check_arm64_boot_lane.sh` to prove the baseline still
    exists.
 

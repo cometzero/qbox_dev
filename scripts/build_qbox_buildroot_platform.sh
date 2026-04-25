@@ -2,14 +2,14 @@
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-qbox_root=${QBOX_ROOT:-"${repo_root}/qbox"}
+qbox_root=${QBOX_ROOT:-"${repo_root}/sources/qbox"}
 ccache_bin=${QBOX_CCACHE:-$(command -v ccache || true)}
 use_ccache=${QBOX_USE_CCACHE:-1}
 ccache_dir=${QBOX_QBOX_CCACHE_DIR:-"${repo_root}/build/ccache/qbox"}
 
 if [[ ! -f "${qbox_root}/CMakePresets.json" ]]; then
   echo "QBox source missing: ${qbox_root}" >&2
-  echo "Run: git submodule update --init --recursive qbox" >&2
+  echo "Run: git submodule update --init --recursive sources/qbox" >&2
   exit 1
 fi
 

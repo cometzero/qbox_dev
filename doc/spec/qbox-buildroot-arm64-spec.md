@@ -30,7 +30,7 @@ The Buildroot platform must not overwrite Ubuntu artifacts. It must use a
 separate QBox platform path such as:
 
 ```text
-qbox/platforms/buildroot/
+sources/qbox/platforms/buildroot/
   conf_aarch64.lua
   fw/
     arm64_bootloader.lua

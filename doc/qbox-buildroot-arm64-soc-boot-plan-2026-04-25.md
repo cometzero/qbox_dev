@@ -2,7 +2,7 @@
 
 Date: 2026-04-25
 Workspace: `/build/qbox_dev`
-QBox submodule: `/build/qbox_dev/qbox`
+QBox submodule: `/build/qbox_dev/sources/qbox`
 Goal: boot a minimal Buildroot Linux userspace on an ARM64 QBox platform first, then extend toward the requested heterogeneous SoC.
 
 ## 0. Current Repository Baseline
@@ -11,13 +11,13 @@ The current checkout already has an AArch64 Linux boot lane, but it is Ubuntu-or
 
 Evidence:
 
-- `qbox/README.md:161-175` documents the current AArch64 quick start: build `platforms/ubuntu/fw/` artifacts, build QBox with `LIBQEMU_TARGETS=aarch64`, then run `platforms-vp` with `platforms/ubuntu/conf_aarch64.lua`.
-- `qbox/docs/platforms/ubuntu.md:17-27` lists generated Linux artifacts: `Image.bin`, `image_ext4.img`, `image_ext4_initrd.img`, `ubuntu.dts`, and `ubuntu.dtb`.
-- `qbox/platforms/ubuntu/conf_aarch64.lua:16-22` defines the boot load addresses.
-- `qbox/platforms/ubuntu/conf_aarch64.lua:144-150` loads `Image.bin`, `ubuntu.dtb`, `image_ext4_initrd.img`, and the ARM64 bootloader stub.
-- `qbox/platforms/ubuntu/conf_aarch64.lua:33,48,166-188` currently configures eight `cpu_arm_cortexA76` CPUs, not the requested four Cortex-A710 CPUs.
-- `qbox/qemu-components/cpu_arm/CMakeLists.txt:1-11` includes `cpu_arm_cortex_a710`, `cpu_arm_cortex_r52`, and `cpu_arm_cortex_m55`, so the requested CPU model classes exist in the QBox component tree.
-- `qbox/docs/networking.md:43-89` contains Buildroot SSH/root-login notes, but no Buildroot boot pipeline.
+- `sources/qbox/README.md:161-175` documents the current AArch64 quick start: build `platforms/ubuntu/fw/` artifacts, build QBox with `LIBQEMU_TARGETS=aarch64`, then run `platforms-vp` with `platforms/ubuntu/conf_aarch64.lua`.
+- `sources/qbox/docs/platforms/ubuntu.md:17-27` lists generated Linux artifacts: `Image.bin`, `image_ext4.img`, `image_ext4_initrd.img`, `ubuntu.dts`, and `ubuntu.dtb`.
+- `sources/qbox/platforms/ubuntu/conf_aarch64.lua:16-22` defines the boot load addresses.
+- `sources/qbox/platforms/ubuntu/conf_aarch64.lua:144-150` loads `Image.bin`, `ubuntu.dtb`, `image_ext4_initrd.img`, and the ARM64 bootloader stub.
+- `sources/qbox/platforms/ubuntu/conf_aarch64.lua:33,48,166-188` currently configures eight `cpu_arm_cortexA76` CPUs, not the requested four Cortex-A710 CPUs.
+- `sources/qbox/qemu-components/cpu_arm/CMakeLists.txt:1-11` includes `cpu_arm_cortex_a710`, `cpu_arm_cortex_r52`, and `cpu_arm_cortex_m55`, so the requested CPU model classes exist in the QBox component tree.
+- `sources/qbox/docs/networking.md:43-89` contains Buildroot SSH/root-login notes, but no Buildroot boot pipeline.
 
 Conclusion: first reuse the proven Ubuntu AArch64 boot contract, but introduce a Buildroot-specific artifact pipeline and platform config instead of mutating the existing Ubuntu lane.
 
@@ -70,13 +70,13 @@ Use the existing QBox AArch64 map as the baseline and add explicit SRAM windows 
 
 Notes:
 
-- `qbox/platforms/ubuntu/conf_aarch64.lua:31` already uses `UART0 = 0x10000000`.
-- `qbox/platforms/ubuntu/conf_aarch64.lua:62-66` already maps 4 GiB DRAM at `0x80000000`.
+- `sources/qbox/platforms/ubuntu/conf_aarch64.lua:31` already uses `UART0 = 0x10000000`.
+- `sources/qbox/platforms/ubuntu/conf_aarch64.lua:62-66` already maps 4 GiB DRAM at `0x80000000`.
 - Avoid changing the DRAM base in M1 because the bootloader, DTB, initrd, and current docs all assume that contract.
 
 ## 3. Buildroot Artifact Plan
 
-Create a Buildroot lane outside the upstream `qbox/` submodule first, then wire QBox to consume its outputs.
+Create a Buildroot lane outside the upstream `sources/qbox/` submodule first, then wire QBox to consume its outputs.
 
 Recommended workspace layout:
 
@@ -115,13 +115,13 @@ Initial Buildroot choices:
 Expected M1 output contract for QBox:
 
 ```text
-qbox/platforms/buildroot/fw/Artifacts/Image.bin        # or symlink/copy from Buildroot Image
-qbox/platforms/buildroot/fw/Artifacts/qbox_a710.dtb
-qbox/platforms/buildroot/fw/Artifacts/rootfs.cpio      # M1 initramfs
-qbox/platforms/buildroot/conf_aarch64.lua
+sources/qbox/platforms/buildroot/fw/Artifacts/Image.bin        # or symlink/copy from Buildroot Image
+sources/qbox/platforms/buildroot/fw/Artifacts/qbox_a710.dtb
+sources/qbox/platforms/buildroot/fw/Artifacts/rootfs.cpio      # M1 initramfs
+sources/qbox/platforms/buildroot/conf_aarch64.lua
 ```
 
-Do not overwrite `qbox/platforms/ubuntu/fw/Artifacts/*` for Buildroot.
+Do not overwrite `sources/qbox/platforms/ubuntu/fw/Artifacts/*` for Buildroot.
 
 ## 4. QBox Platform Plan
 
@@ -130,7 +130,7 @@ Do not overwrite `qbox/platforms/ubuntu/fw/Artifacts/*` for Buildroot.
 Add a new platform lane rather than modifying Ubuntu directly:
 
 ```text
-qbox/platforms/buildroot/
+sources/qbox/platforms/buildroot/
   conf_aarch64.lua
   fw/
     arm64_bootloader.lua      # initially copied/reused from ubuntu fw
@@ -155,9 +155,9 @@ Implementation steps:
 Add a separate target so Ubuntu remains untouched:
 
 ```bash
-cmake -B qbox/build -S qbox -DLIBQEMU_TARGETS=aarch64
-cmake --build qbox/build --parallel
-cmake --build qbox/build --target buildroot-a710-boot
+cmake -B sources/qbox/build -S sources/qbox -DLIBQEMU_TARGETS=aarch64
+cmake --build sources/qbox/build --parallel
+cmake --build sources/qbox/build --target buildroot-a710-boot
 ```
 
 The new target should depend on:
@@ -170,7 +170,7 @@ The new target should depend on:
 First run should be explicit and debuggable:
 
 ```bash
-cd /build/qbox_dev/qbox
+cd /build/qbox_dev/sources/qbox
 ./build/platforms/platforms-vp -l platforms/buildroot/conf_aarch64.lua
 ```
 
@@ -229,7 +229,7 @@ ls -l build/buildroot-a710/images/Image \
 ### Gate C: QBox build
 
 ```bash
-cd /build/qbox_dev/qbox
+cd /build/qbox_dev/sources/qbox
 cmake --preset gcc -DLIBQEMU_TARGETS=aarch64
 cmake --build --preset gcc --parallel
 ```
@@ -237,7 +237,7 @@ cmake --build --preset gcc --parallel
 ### Gate D: first Linux boot smoke
 
 ```bash
-cd /build/qbox_dev/qbox
+cd /build/qbox_dev/sources/qbox
 timeout --signal=SIGQUIT 120s \
   ./build/platforms/platforms-vp -l platforms/buildroot/conf_aarch64.lua \
   2>&1 | tee /build/qbox_dev/build/qbox-a710-buildroot-boot.log
@@ -279,7 +279,7 @@ Do not block Linux M1 on R52/M55. Add them in later milestones:
 ### M4: Cortex-M55 Zephyr
 
 - Instantiate `cpu_arm_cortexM55` using the existing Cortex-M55 component family.
-- Reuse lessons from `qbox/platforms/cortex-m55-remote/`.
+- Reuse lessons from `sources/qbox/platforms/cortex-m55-remote/`.
 - Add M55 SRAM and UART.
 - Validate Zephyr console first, then shared memory.
 
@@ -305,7 +305,7 @@ Do not block Linux M1 on R52/M55. Add them in later milestones:
 1. Commit/keep this plan and baseline check script.
 2. Add Buildroot external tree and `qbox_a710_soc_defconfig`.
 3. Generate `Image`, `qbox_a710_soc.dtb`, and `rootfs.cpio`.
-4. Add `qbox/platforms/buildroot/conf_aarch64.lua` by cloning the Ubuntu AArch64 config.
+4. Add `sources/qbox/platforms/buildroot/conf_aarch64.lua` by cloning the Ubuntu AArch64 config.
 5. Change CPU count/model to 4 x Cortex-A710.
 6. Boot initramfs to BusyBox shell.
 7. Add ext4/virtio rootfs boot.

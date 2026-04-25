@@ -1,7 +1,7 @@
 # QBox Buildroot A710 SoC 하드웨어 아키텍처
 
 > 기준일: 2026-04-25
-> 기준 구현: `qbox/platforms/buildroot/conf_aarch64.lua` + `buildroot/external/qbox_arm64/board/qbox/a710_soc/qbox_a710_soc.dts`
+> 기준 구현: `sources/qbox/platforms/buildroot/conf_aarch64.lua` + `buildroot/external/qbox_arm64/board/qbox/a710_soc/qbox_a710_soc.dts`
 
 ## 요약
 
@@ -61,12 +61,12 @@ flowchart LR
 
 | 항목 | 파일 |
 | --- | --- |
-| QBox 플랫폼 구성 | `qbox/platforms/buildroot/conf_aarch64.lua` |
+| QBox 플랫폼 구성 | `sources/qbox/platforms/buildroot/conf_aarch64.lua` |
 | Linux device tree | `buildroot/external/qbox_arm64/board/qbox/a710_soc/qbox_a710_soc.dts` |
 | 편집 가능한 하드웨어 그림 | `doc/hardware/qbox-a710-hw-architecture.drawio` |
-| 커널 artifact load path | `qbox/platforms/buildroot/fw/Artifacts/Image.bin` |
-| DTB artifact load path | `qbox/platforms/buildroot/fw/Artifacts/qbox_a710_soc.dtb` |
-| initramfs artifact load path | `qbox/platforms/buildroot/fw/Artifacts/rootfs.cpio` |
+| 커널 artifact load path | `sources/qbox/platforms/buildroot/fw/Artifacts/Image.bin` |
+| DTB artifact load path | `sources/qbox/platforms/buildroot/fw/Artifacts/qbox_a710_soc.dtb` |
+| initramfs artifact load path | `sources/qbox/platforms/buildroot/fw/Artifacts/rootfs.cpio` |
 
 ## 현재 모델링 범위
 

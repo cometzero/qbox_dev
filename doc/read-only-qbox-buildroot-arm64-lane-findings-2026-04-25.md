@@ -2,7 +2,7 @@
 
 Date: 2026-04-25
 Workspace root: `/build/qbox_dev`
-Repo root: `/build/qbox_dev/qbox`
+Repo root: `/build/qbox_dev/sources/qbox`
 Task: read-only QBox Buildroot ARM64 SoC boot planning
 
 ## Executive summary
@@ -17,34 +17,34 @@ new lane rather than a small patch on an existing Buildroot implementation.
 
 ### AArch64 boot path is already modeled
 
-- `qbox/platforms/ubuntu/conf_aarch64.lua` wires the AArch64 platform:
+- `sources/qbox/platforms/ubuntu/conf_aarch64.lua` wires the AArch64 platform:
   - `cpu_arm_cortexA76`
   - `arm_gicv3`
   - `psci_conduit = "smc"` with `hvc` for KVM
   - kernel, DTB, and initrd load addresses
   - virtio block and network plumbing
-- `qbox/platforms/ubuntu/fw/arm64_bootloader.lua` provides the AArch64
+- `sources/qbox/platforms/ubuntu/fw/arm64_bootloader.lua` provides the AArch64
   bootloader stub.
-- `qbox/platforms/ubuntu/fw/ubuntu-dts-arm64.template` provides the device
+- `sources/qbox/platforms/ubuntu/fw/ubuntu-dts-arm64.template` provides the device
   tree template with PSCI and CPU enable-method wiring.
 
 ### Artifact generation already exists for Linux images
 
-- `qbox/platforms/ubuntu/fw/build_linux_dist_image.sh` builds:
+- `sources/qbox/platforms/ubuntu/fw/build_linux_dist_image.sh` builds:
   - kernel `Image.bin`
   - ext4 rootfs `image_ext4.img`
   - initramfs `image_ext4_initrd.img`
   - generated DTB/ DTS artifacts
-- `qbox/docs/platforms/ubuntu.md` documents the same flow and shows the
+- `sources/qbox/docs/platforms/ubuntu.md` documents the same flow and shows the
   `aarch64` and `riscv64` runtime entry points.
 
 ### Build-system hooks already expose the AArch64 path
 
-- `qbox/platforms/CMakeLists.txt` selects `LIBQEMU_TARGETS=aarch64` by default
+- `sources/qbox/platforms/CMakeLists.txt` selects `LIBQEMU_TARGETS=aarch64` by default
   for the Ubuntu path and defines the `ubuntu` custom target.
-- `qbox/CMakePresets.json` includes `aarch64` in the default
+- `sources/qbox/CMakePresets.json` includes `aarch64` in the default
   `LIBQEMU_TARGETS` list.
-- `qbox/README.md` includes an AArch64 Ubuntu quick-start that matches the
+- `sources/qbox/README.md` includes an AArch64 Ubuntu quick-start that matches the
   platform wiring above.
 
 ## What is missing for Buildroot ARM64
@@ -58,7 +58,7 @@ I did not find any of the following in this checkout:
 - a Buildroot boot smoke test or CI hook
 
 The only Buildroot reference in the repo is a generic networking doc section
-(`qbox/docs/networking.md`) that lists SSH and root password settings. That is a
+(`sources/qbox/docs/networking.md`) that lists SSH and root password settings. That is a
 configuration hint, not a platform implementation.
 
 ## Lane findings
@@ -96,7 +96,7 @@ validated against it.
 definition or land as a separate platform configuration.
 
 **Current state:** the only AArch64 platform entry point is
-`qbox/platforms/ubuntu/conf_aarch64.lua`.
+`sources/qbox/platforms/ubuntu/conf_aarch64.lua`.
 
 **Implication:** the safest path is a new Buildroot-specific platform config or
 an explicitly named overlay so the Ubuntu flow stays intact.
@@ -126,5 +126,5 @@ boot planning artifact that answers these questions:
 ## Notes
 
 - I kept the scope read-only with respect to the QBox submodule.
-- No source files were modified in `qbox/`; this report lives in the workspace
+- No source files were modified in `sources/qbox/`; this report lives in the workspace
   `doc/` area.

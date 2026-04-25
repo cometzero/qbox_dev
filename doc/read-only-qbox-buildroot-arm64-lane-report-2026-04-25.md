@@ -2,7 +2,7 @@
 
 Date: 2026-04-25
 Workspace root: `/build/qbox_dev`
-Repo: `/build/qbox_dev/qbox`
+Repo: `/build/qbox_dev/sources/qbox`
 Repo commit: `27adc6d59f0782bcbbb29b388de6d6971f1f1f7c`
 Task: `Read-only QBox Buildroot ARM64 SoC boot planning`
 

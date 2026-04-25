@@ -5,14 +5,14 @@ vendoring generated copies.
 
 | Path | Upstream | Pin |
 | --- | --- | --- |
-| `qbox/` | <https://github.com/quic/qbox.git> | local branch `feature/aarch64_buildroot` |
+| `sources/qbox/` | <https://github.com/quic/qbox.git> | local branch `feature/aarch64_buildroot` |
 | `sources/buildroot/` | <https://gitlab.com/buildroot.org/buildroot.git> | `2026.02.1` |
 | `sources/linux/` | <https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git> | mainline `master` (`27d128c1cff64c3b8012cc56dd5a1391bb4f1821`) |
 
 Initialize with:
 
 ```bash
-git submodule update --init --recursive qbox sources/buildroot sources/linux
+git submodule update --init --recursive sources/qbox sources/buildroot sources/linux
 ```
 
 The Linux and Buildroot submodules are configured for full history, not shallow

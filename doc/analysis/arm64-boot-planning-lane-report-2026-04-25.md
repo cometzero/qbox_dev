@@ -4,7 +4,7 @@ Date: 2026-04-25
 
 ## Scope
 
-I inspected the QBox repository at `/build/qbox_dev/qbox` for the ARM64 boot
+I inspected the QBox repository at `/build/qbox_dev/sources/qbox` for the ARM64 boot
 path that is available in this workspace and checked whether a repo-native
 Buildroot lane already exists.
 
@@ -49,7 +49,7 @@ config in this repository.
 ## Verification artifact
 
 I added `scripts/check_arm64_boot_lane.sh` as a repeatable repository check for
-the above observations. It points at `/build/qbox_dev/qbox` by default and
+the above observations. It points at `/build/qbox_dev/sources/qbox` by default and
 verifies:
 
 - the Ubuntu AArch64 platform config exists
@@ -69,7 +69,7 @@ to decide whether to:
 ## Verification snapshot
 
 The repeatable check script in `scripts/check_arm64_boot_lane.sh` passed against
-`/build/qbox_dev/qbox` on 2026-04-25, confirming the AArch64 Ubuntu lane and
+`/build/qbox_dev/sources/qbox` on 2026-04-25, confirming the AArch64 Ubuntu lane and
 the absence of a repo-native Buildroot ARM64 boot lane in this checkout.
 This was a static planning pass; I did not run the full QBox simulator or a
 Buildroot image build because the task only asked for lane discovery and

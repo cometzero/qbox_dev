@@ -1,5 +1,5 @@
 [submodule "qbox"]
-	path = qbox
+	path = sources/qbox
 	url = https://github.com/quic/qbox.git
 [submodule "sources/buildroot"]
 	path = sources/buildroot

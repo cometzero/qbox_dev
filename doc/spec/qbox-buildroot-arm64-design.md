@@ -56,7 +56,7 @@
 1. Buildroot produces `qbox_a710_soc.dtb` and `rootfs.cpio` only.
 2. The standalone Linux script builds `Image` from `sources/linux`.
 3. A staging step copies or symlinks those artifacts into
-   `qbox/platforms/buildroot/fw/Artifacts/`.
+   `sources/qbox/platforms/buildroot/fw/Artifacts/`.
 4. `platforms-vp` loads `platforms/buildroot/conf_aarch64.lua`.
 5. The QBox loader writes:
    - kernel to `_KERNEL64_LOAD_ADDR`.
@@ -74,7 +74,7 @@ The first Buildroot platform should be a copy-derived sibling of the Ubuntu
 AArch64 platform:
 
 ```text
-qbox/platforms/buildroot/conf_aarch64.lua
+sources/qbox/platforms/buildroot/conf_aarch64.lua
 ```
 
 Initial edits from the Ubuntu baseline:
@@ -121,11 +121,11 @@ Artifact staging should be explicit:
 
 ```bash
 install -D build/linux-a710/arch/arm64/boot/Image \
-  qbox/platforms/buildroot/fw/Artifacts/Image.bin
+  sources/qbox/platforms/buildroot/fw/Artifacts/Image.bin
 install -D build/buildroot-a710/images/qbox_a710_soc.dtb \
-  qbox/platforms/buildroot/fw/Artifacts/qbox_a710_soc.dtb
+  sources/qbox/platforms/buildroot/fw/Artifacts/qbox_a710_soc.dtb
 install -D build/buildroot-a710/images/rootfs.cpio \
-  qbox/platforms/buildroot/fw/Artifacts/rootfs.cpio
+  sources/qbox/platforms/buildroot/fw/Artifacts/rootfs.cpio
 ```
 
 ## Heterogeneous SoC design path

@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-qbox_root="${QBOX_ROOT:-/build/qbox_dev/qbox}"
+qbox_root="${QBOX_ROOT:-/build/qbox_dev/sources/qbox}"
 
 if [[ ! -d "${qbox_root}" ]]; then
     fail "qbox repo root missing: ${qbox_root}"

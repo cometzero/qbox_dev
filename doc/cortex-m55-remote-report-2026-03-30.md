@@ -2,7 +2,7 @@
 
 Date: 2026-03-30
 Workspace root: `/build/qbox_dev`
-Repo: `/build/qbox_dev/qbox`
+Repo: `/build/qbox_dev/sources/qbox`
 Repo commit: `76669c159b5964ee8bc1dd8409c7e4834235a8f2`
 Target: `platforms/cortex-m55-remote`
 
@@ -66,34 +66,34 @@ Output:
 
 ### 1) Host executables
 ```bash
-cmake --build /build/qbox_dev/qbox/build --target cortex-m55-vp remote_cpu --parallel 8
+cmake --build /build/qbox_dev/sources/qbox/build --target cortex-m55-vp remote_cpu --parallel 8
 ```
 Artifacts:
-- `/build/qbox_dev/qbox/build/cortex-m55-vp`
-- `/build/qbox_dev/qbox/build/remote_cpu`
+- `/build/qbox_dev/sources/qbox/build/cortex-m55-vp`
+- `/build/qbox_dev/sources/qbox/build/remote_cpu`
 
 ### 2) Runtime-loaded modules required by the Lua platform
 The platform does not run with only the two executables; the Lua-loaded shared modules must also be present in the build root.
 
 Confirmed runtime modules:
-- `/build/qbox_dev/qbox/build/char_backend_stdio.so`
-- `/build/qbox_dev/qbox/build/gs_memory.so`
-- `/build/qbox_dev/qbox/build/keep_alive.so`
-- `/build/qbox_dev/qbox/build/uart-pl011.so`
-- `/build/qbox_dev/qbox/build/router.so`
-- `/build/qbox_dev/qbox/build/pass.so`
+- `/build/qbox_dev/sources/qbox/build/char_backend_stdio.so`
+- `/build/qbox_dev/sources/qbox/build/gs_memory.so`
+- `/build/qbox_dev/sources/qbox/build/keep_alive.so`
+- `/build/qbox_dev/sources/qbox/build/uart-pl011.so`
+- `/build/qbox_dev/sources/qbox/build/router.so`
+- `/build/qbox_dev/sources/qbox/build/pass.so`
 
 ### 3) Firmware rebuild from source
 ```bash
 PATH=/build/qbox_dev/.tools/arm-none-eabi/root/usr/bin:$PATH \
-make -C /build/qbox_dev/qbox/platforms/cortex-m55-remote/fw/cortex-m55 clean all
+make -C /build/qbox_dev/sources/qbox/platforms/cortex-m55-remote/fw/cortex-m55 clean all
 ```
 
 Result: success
 
 Rebuilt firmware artifacts:
-- `/build/qbox_dev/qbox/platforms/cortex-m55-remote/fw/cortex-m55/cortex-m55.bin`
-- `/build/qbox_dev/qbox/platforms/cortex-m55-remote/fw/cortex-m55/cortex-m55.elf`
+- `/build/qbox_dev/sources/qbox/platforms/cortex-m55-remote/fw/cortex-m55/cortex-m55.bin`
+- `/build/qbox_dev/sources/qbox/platforms/cortex-m55-remote/fw/cortex-m55/cortex-m55.elf`
 
 Checksums:
 - `368c68659452025a2fc8fbc02c47678aa6b9a563a5c774c4ef9e3d98a86f1bad  platforms/cortex-m55-remote/fw/cortex-m55/cortex-m55.bin`
@@ -108,7 +108,7 @@ Sizes:
 ### 1) Official packaged test
 Command:
 ```bash
-ctest --test-dir /build/qbox_dev/qbox/build --output-on-failure -R cortex_m55
+ctest --test-dir /build/qbox_dev/sources/qbox/build --output-on-failure -R cortex_m55
 ```
 Result:
 - `100% tests passed, 0 tests failed out of 1`
@@ -125,8 +125,8 @@ Key evidence from that run:
 ### 2) Direct runtime check
 Command:
 ```bash
-timeout --signal=SIGQUIT 20s /build/qbox_dev/qbox/build/cortex-m55-vp \
-  --gs_luafile /build/qbox_dev/qbox/platforms/cortex-m55-remote/conf.lua \
+timeout --signal=SIGQUIT 20s /build/qbox_dev/sources/qbox/build/cortex-m55-vp \
+  --gs_luafile /build/qbox_dev/sources/qbox/platforms/cortex-m55-remote/conf.lua \
   > /tmp/cortex_m55_vp.log 2>&1
 ```
 

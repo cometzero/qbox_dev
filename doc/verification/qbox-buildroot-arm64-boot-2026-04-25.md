@@ -13,17 +13,17 @@ simulation was stopped after the login prompt was observed.
 
 | Source | Path | Pin |
 | --- | --- | --- |
-| QBox | `qbox/` | `7ece7381b08715372f8984a6b38980df6fd2b821` on `feature/aarch64_buildroot` |
+| QBox | `sources/qbox/` | `7ece7381b08715372f8984a6b38980df6fd2b821` on `feature/aarch64_buildroot` |
 | Buildroot | `sources/buildroot/` | `2026.02.1` / `0141ca3fa5302c0c3c583cb898bd3f8792bced69` |
-| Linux | `sources/linux/` | `v7.0` / `028ef9c96e96197026887c0f092424679298aae8` |
+| Linux | `sources/linux/` | `mainline master` / `27d128c1cff64c3b8012cc56dd5a1391bb4f1821` (`v7.0-13891-g27d128c1cff6`) |
 
 ## Artifact contract
 
 | Artifact | Producer | Staged path | Size |
 | --- | --- | --- | ---: |
-| Linux Image | `scripts/build_qbox_linux_arm64.sh` from `sources/linux` | `qbox/platforms/buildroot/fw/Artifacts/Image.bin` | 41445888 |
-| DTB | Buildroot post-image hook | `qbox/platforms/buildroot/fw/Artifacts/qbox_a710_soc.dtb` | 2841 |
-| initramfs | Buildroot rootfs-only build | `qbox/platforms/buildroot/fw/Artifacts/rootfs.cpio` | 3809280 |
+| Linux Image | `scripts/build_qbox_linux_arm64.sh` from `sources/linux` | `sources/qbox/platforms/buildroot/fw/Artifacts/Image.bin` | 42920448 |
+| DTB | Buildroot post-image hook | `sources/qbox/platforms/buildroot/fw/Artifacts/qbox_a710_soc.dtb` | 2841 |
+| initramfs | Buildroot rootfs-only build | `sources/qbox/platforms/buildroot/fw/Artifacts/rootfs.cpio` | 3809280 |
 
 Buildroot kernel build is intentionally disabled. Verification evidence:
 
@@ -51,7 +51,7 @@ scripts/build_qbox_linux_arm64.sh --config-only
 scripts/build_qbox_linux_arm64.sh
 scripts/stage_buildroot_artifacts.sh
 scripts/build_qbox_buildroot_platform.sh
-QBOX_BOOT_TIMEOUT=35 scripts/run_qbox_buildroot_boot.sh
+QBOX_BOOT_TIMEOUT=8 scripts/run_qbox_buildroot_boot.sh
 ```
 
 ## Boot-log proof
@@ -85,3 +85,9 @@ qbox-a710 login:
 - The boot smoke is not an interactive login test; it stops at the login prompt.
 - R52, M55, ext4 rootfs, and SystemC device additions remain deferred follow-up
   milestones per `doc/spec/`.
+
+## Follow-up verification
+
+- See `doc/verification/qbox-sources-move-rebuild-2026-04-25.md` for the
+  post-move full rebuild, ccache, pseudo-TTY runner, and latest-mainline boot
+  smoke evidence after moving QBox to `sources/qbox/`.

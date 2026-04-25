@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-qbox_root=${QBOX_ROOT:-"${repo_root}/qbox"}
+qbox_root=${QBOX_ROOT:-"${repo_root}/sources/qbox"}
 vp=${QBOX_PLATFORMS_VP:-"${qbox_root}/build/platforms-vp"}
 log_dir=${QBOX_VERIFICATION_DIR:-"${repo_root}/build/verification"}
 timeout_s=${QBOX_BOOT_TIMEOUT:-0}
@@ -60,10 +60,12 @@ EOF_MSG
 
 cd "${qbox_root}"
 
-# When launched from a real terminal, run through a pseudo-TTY so QBox/SystemC
-# and the guest UART flush output immediately while still recording the log.
-# In non-interactive CI/Codex runs, fall back to line-buffering plus tee.
-if [[ -t 0 && -t 1 && "${QBOX_BOOT_PTY:-1}" != "0" ]] && command -v script >/dev/null 2>&1; then
+# Run through a pseudo-TTY by default so QBox/SystemC keeps stdio-backed UARTs
+# alive and flushes guest output immediately while still recording the log. This
+# matters even in non-interactive CI/Codex runs: without a PTY, QBox can observe
+# stdin EOF and stop before the login prompt. Set QBOX_BOOT_PTY=0 to force the
+# plain line-buffered path.
+if [[ "${QBOX_BOOT_PTY:-1}" != "0" ]] && command -v script >/dev/null 2>&1; then
   quoted_cmd=$(printf '%q ' "${run_cmd[@]}")
   script -qefc "${quoted_cmd% }" "${log_path}"
 else

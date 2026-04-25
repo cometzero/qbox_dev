@@ -33,11 +33,11 @@ forbid_grep() {
 }
 
 require_submodule() {
-  local path=$1 label=$2
-  git -C "${repo_root}" config -f .gitmodules --get "submodule.${path}.path" >/dev/null \
+  local name=$1 label=$2 submodule_path
+  submodule_path=$(git -C "${repo_root}" config -f .gitmodules --get "submodule.${name}.path") \
     || fail "${label} missing from .gitmodules"
-  [[ -e "${repo_root}/${path}/.git" ]] || fail "${label} checkout missing at ${path}"
-  pass "${label} registered and checked out"
+  [[ -e "${repo_root}/${submodule_path}/.git" ]] || fail "${label} checkout missing at ${submodule_path}"
+  pass "${label} registered at ${submodule_path} and checked out"
 }
 
 require_submodule qbox "QBox submodule"
@@ -86,10 +86,11 @@ require_grep 'kernel_build": "external:sources/linux"' "${board}/post-image.sh" 
 require_grep 'mount -t devtmpfs devtmpfs /dev' "${board}/post-build.sh" "post-build early devtmpfs mount entry"
 require_grep '/dev/ttyAMA0[[:space:]]+c[[:space:]]+660' "${board}/device_table.txt" "static ttyAMA0 fallback node"
 
-platform="${repo_root}/qbox/platforms/buildroot/conf_aarch64.lua"
+qbox_root="${repo_root}/sources/qbox"
+platform="${qbox_root}/platforms/buildroot/conf_aarch64.lua"
 require_file "${platform}" "QBox Buildroot AArch64 platform"
-require_file "${repo_root}/qbox/platforms/buildroot/fw/arm64_bootloader.lua" "Buildroot ARM64 bootloader stub"
-require_file "${repo_root}/qbox/platforms/buildroot/fw/Artifacts/.gitignore" "artifact directory gitignore"
+require_file "${qbox_root}/platforms/buildroot/fw/arm64_bootloader.lua" "Buildroot ARM64 bootloader stub"
+require_file "${qbox_root}/platforms/buildroot/fw/Artifacts/.gitignore" "artifact directory gitignore"
 require_grep 'ARM_NUM_CPUS = 4' "${platform}" "4 Cortex-A710 CPUs"
 require_grep 'cpu_arm_cortexA710' "${platform}" "QBox Cortex-A710 module"
 require_grep 'qbox_a710_soc\.dtb' "${platform}" "Buildroot DTB artifact"
@@ -98,7 +99,7 @@ require_grep 'math\.floor\(i / 2\) << 8' "${platform}" "2x2 cluster mp_affinity 
 require_grep 'CMAKE_C_COMPILER_LAUNCHER="\$\{ccache_bin\}"' "${repo_root}/scripts/build_qbox_buildroot_platform.sh" "QBox C ccache launcher"
 require_grep 'CMAKE_CXX_COMPILER_LAUNCHER="\$\{ccache_bin\}"' "${repo_root}/scripts/build_qbox_buildroot_platform.sh" "QBox CXX ccache launcher"
 
-if git -C "${repo_root}/qbox" ls-files --error-unmatch platforms/buildroot/fw/Artifacts/Image.bin >/dev/null 2>&1; then
+if git -C "${qbox_root}" ls-files --error-unmatch platforms/buildroot/fw/Artifacts/Image.bin >/dev/null 2>&1; then
   fail "generated Image.bin must not be tracked"
 fi
 pass "generated boot artifacts are not tracked in qbox"

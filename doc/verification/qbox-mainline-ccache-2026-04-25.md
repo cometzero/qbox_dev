@@ -14,7 +14,7 @@ Linux, and QBox platform builds.
 
 | Component | Path | Revision / history state |
 | --- | --- | --- |
-| QBox | `qbox/` | `7ece7381b08715372f8984a6b38980df6fd2b821`, full history |
+| QBox | `sources/qbox/` | `7ece7381b08715372f8984a6b38980df6fd2b821`, full history |
 | Buildroot | `sources/buildroot/` | `2026.02.1` / `0141ca3fa5302c0c3c583cb898bd3f8792bced69`, full history |
 | Linux | `sources/linux/` | mainline `master` / `27d128c1cff64c3b8012cc56dd5a1391bb4f1821`, full history |
 
@@ -47,7 +47,7 @@ scripts/build_qbox_buildroot_platform.sh --config-only
 make -s -C sources/linux O=/build/qbox_dev/build/linux-a710 \
   kernelrelease ARCH=arm64 \
   CROSS_COMPILE="/usr/bin/ccache /build/qbox_dev/build/buildroot-a710/host/bin/aarch64-buildroot-linux-gnu-"
-rg -n 'CMAKE_(C|CXX)_COMPILER_LAUNCHER' qbox/build/CMakeCache.txt
+rg -n 'CMAKE_(C|CXX)_COMPILER_LAUNCHER' sources/qbox/build/CMakeCache.txt
 ```
 
 ## Results
@@ -58,7 +58,7 @@ rg -n 'CMAKE_(C|CXX)_COMPILER_LAUNCHER' qbox/build/CMakeCache.txt
 | Linux latest mainline tree | PASS | `sources/linux` HEAD is `27d128c1cff64c3b8012cc56dd5a1391bb4f1821`, matching `refs/heads/master` from `torvalds/linux.git` during this run |
 | Buildroot ccache config | PASS | `build/buildroot-a710/.config` contains `BR2_CCACHE=y`; build script exports `BR2_CCACHE_DIR=/build/qbox_dev/build/ccache/buildroot` |
 | Linux ccache config | PASS | `scripts/build_qbox_linux_arm64.sh --config-only` reports `/usr/bin/ccache` and `build/ccache/linux` |
-| QBox ccache config | PASS | `qbox/build/CMakeCache.txt` contains both C and CXX compiler launcher entries set to `/usr/bin/ccache` |
+| QBox ccache config | PASS | `sources/qbox/build/CMakeCache.txt` contains both C and CXX compiler launcher entries set to `/usr/bin/ccache` |
 | Kernel build ownership | PASS | `scripts/check_buildroot_arm64_lane.sh` still verifies `BR2_LINUX_KERNEL` is disabled and Linux Image is built from `sources/linux` |
 
 ## Notes
@@ -67,6 +67,6 @@ rg -n 'CMAKE_(C|CXX)_COMPILER_LAUNCHER' qbox/build/CMakeCache.txt
   Kconfig. The rootfs/toolchain header selection was not changed here; the
   runtime kernel source moved independently to latest mainline `master` through
   the standalone `sources/linux` submodule.
-- Full QBox runtime rebuild and boot smoke were not rerun in this verification;
-  this pass validates configuration, source revision, full-history state, and
-  ccache wiring.
+- The follow-up move/rebuild pass reran the full QBox runtime build and boot
+  smoke after relocating QBox to `sources/qbox/`; see
+  `doc/verification/qbox-sources-move-rebuild-2026-04-25.md`.

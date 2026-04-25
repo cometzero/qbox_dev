@@ -6,7 +6,7 @@ buildroot_output=${QBOX_BUILDROOT_OUTPUT:-"${repo_root}/build/buildroot-a710"}
 buildroot_images=${QBOX_BUILDROOT_IMAGES:-"${buildroot_output}/images"}
 linux_output=${QBOX_LINUX_OUTPUT:-"${repo_root}/build/linux-a710"}
 linux_image=${QBOX_LINUX_IMAGE:-"${linux_output}/arch/arm64/boot/Image"}
-artifacts_dir=${QBOX_BUILDROOT_ARTIFACTS:-"${repo_root}/qbox/platforms/buildroot/fw/Artifacts"}
+artifacts_dir=${QBOX_BUILDROOT_ARTIFACTS:-"${repo_root}/sources/qbox/platforms/buildroot/fw/Artifacts"}
 
 require_artifact() {
   local path=$1

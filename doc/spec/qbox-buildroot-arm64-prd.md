@@ -49,7 +49,7 @@ wiring, and device modeling concerns too early.
 
 The source plan identifies these facts:
 
-- Existing boot path: `qbox/platforms/ubuntu/conf_aarch64.lua`.
+- Existing boot path: `sources/qbox/platforms/ubuntu/conf_aarch64.lua`.
 - Existing artifact names: `Image.bin`, `ubuntu.dtb`, and
   `image_ext4_initrd.img`.
 - Existing DRAM base: `0x80000000`.
@@ -116,7 +116,7 @@ Scope:
 - 1 x Cortex-M55.
 - 1 x M55 UART.
 - 1 MiB M55 SRAM.
-- Reuse lessons from `qbox/platforms/cortex-m55-remote/`.
+- Reuse lessons from `sources/qbox/platforms/cortex-m55-remote/`.
 
 Success criteria:
 
