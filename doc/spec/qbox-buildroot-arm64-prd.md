@@ -23,6 +23,8 @@ wiring, and device modeling concerns too early.
    reproducible build outputs.
 4. Model the first milestone with 4 x Cortex-A710 cores, GICv3, PL011 console,
    4 GiB DRAM, and initramfs-based rootfs.
+5. Keep Linux kernel source/build ownership in a separate git submodule while
+   Buildroot owns userspace/rootfs generation.
 5. Define the future expansion path for R52, M55, Zephyr, shared SRAM, and
    SystemC devices without blocking the first Linux boot.
 
@@ -66,11 +68,13 @@ Scope:
 - GICv3 and generic timer wiring inherited from the current AArch64 lane.
 - PL011 UART console at `0x10000000`.
 - 4 GiB DRAM at `0x80000000`.
-- Buildroot-generated `Image`, DTB, and initramfs.
+- Linux `Image` built from the `sources/linux` git submodule.
+- Buildroot-generated DTB and initramfs.
 
 Success criteria:
 
-- Buildroot generates kernel, DTB, and initramfs artifacts.
+- Buildroot generates DTB and initramfs artifacts without `BR2_LINUX_KERNEL`.
+- Standalone Linux submodule build generates the kernel `Image`.
 - QBox builds with `LIBQEMU_TARGETS=aarch64`.
 - QBox starts the Buildroot platform config.
 - Linux prints early boot logs on the PL011 console.
@@ -147,7 +151,8 @@ Success criteria:
 | Decision | Default recommendation |
 | --- | --- |
 | Buildroot source location | Use a workspace-managed Buildroot tree plus `BR2_EXTERNAL`. |
-| Kernel version policy | Use latest mainline at implementation time, but record the exact tag or commit in the defconfig/report. |
+| Kernel version policy | Use latest mainline at implementation time as a separate Linux submodule, and record the exact tag or commit in the report. |
 | DTB ownership | Generate or stage the M1 DTB in the Buildroot board directory, then copy/symlink it to QBox artifacts. |
+| Kernel build ownership | Build Linux outside Buildroot from `sources/linux`; Buildroot remains rootfs-only. |
 | Initramfs vs ext4 first | Initramfs first, ext4 later. |
 | R52/M55 modeling | Defer to separate milestones and consider isolated QEMU instances if needed. |

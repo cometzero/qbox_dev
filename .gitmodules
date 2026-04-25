@@ -1,3 +1,13 @@
 [submodule "qbox"]
 	path = qbox
 	url = https://github.com/quic/qbox.git
+[submodule "sources/buildroot"]
+	path = sources/buildroot
+	url = https://gitlab.com/buildroot.org/buildroot.git
+	branch = 2026.02.1
+	shallow = true
+[submodule "sources/linux"]
+	path = sources/linux
+	url = https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
+	branch = v7.0
+	shallow = true

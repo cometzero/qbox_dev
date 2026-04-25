@@ -1,0 +1,151 @@
+/dts-v1/;
+
+/ {
+	#address-cells = <0x02>;
+	#size-cells = <0x02>;
+	interrupt-parent = <0x8001>;
+	model = "QBox Cortex-A710 Buildroot SoC";
+	compatible = "qbox,a710-soc", "linux,dummy-virt";
+
+	chosen {
+		bootargs = "console=ttyAMA0 earlycon=pl011,0x10000000 rdinit=/sbin/init loglevel=8";
+		stdout-path = "serial0:115200n8";
+		linux,initrd-start = <0x0 __INITRD_START__>;
+		linux,initrd-end = <0x0 __INITRD_END__>;
+	};
+
+	aliases {
+		serial0 = &uart0;
+	};
+
+	apb_pclk: apb-pclk {
+		compatible = "fixed-clock";
+		#clock-cells = <0x0>;
+		clock-frequency = <24000000>;
+		clock-output-names = "clk24mhz";
+		phandle = <0x8000>;
+	};
+
+	psci {
+		compatible = "arm,psci-1.0", "arm,psci";
+		method = "smc";
+		cpu_suspend = <0xc4000001>;
+		cpu_off = <0x84000002>;
+		cpu_on = <0xc4000003>;
+		migrate = <0xc4000005>;
+	};
+
+	timer {
+		compatible = "arm,armv8-timer", "arm,armv7-timer";
+		always-on;
+		interrupts = <0x1 0xd 0x4>, <0x1 0xe 0x4>, <0x1 0xb 0x4>, <0x1 0xa 0x4>;
+	};
+
+	cpus {
+		#address-cells = <0x1>;
+		#size-cells = <0x0>;
+
+		cpu-map {
+			cluster0 {
+				core0 { cpu = <&cpu0>; };
+				core1 { cpu = <&cpu1>; };
+			};
+			cluster1 {
+				core0 { cpu = <&cpu2>; };
+				core1 { cpu = <&cpu3>; };
+			};
+		};
+
+		cpu0: cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a710";
+			reg = <0x0>;
+			enable-method = "psci";
+		};
+
+		cpu1: cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a710";
+			reg = <0x1>;
+			enable-method = "psci";
+		};
+
+		cpu2: cpu@100 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a710";
+			reg = <0x100>;
+			enable-method = "psci";
+		};
+
+		cpu3: cpu@101 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a710";
+			reg = <0x101>;
+			enable-method = "psci";
+		};
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x00 0x80000000 0x01 0x00000000>;
+	};
+
+	intc: intc@17a00000 {
+		compatible = "arm,gic-v3";
+		phandle = <0x8001>;
+		#interrupt-cells = <0x3>;
+		#address-cells = <0x2>;
+		#size-cells = <0x2>;
+		interrupt-controller;
+		interrupts = <0x1 0x9 0x4>;
+		#redistributor-regions = <0x1>;
+		redistributor-stride = <0x0 0x20000>;
+		reg = <0x0 0x17a00000 0x0 0x10000>,
+		      <0x0 0x17a60000 0x0 0x80000>;
+	};
+
+	uart0: serial@10000000 {
+		compatible = "arm,pl011", "arm,primecell";
+		reg = <0x00 0x10000000 0x00 0x1000>;
+		interrupts = <0x00 0x17b 0x04>;
+		clocks = <&apb_pclk>, <&apb_pclk>;
+		clock-names = "uartclk", "apb_pclk";
+		status = "okay";
+	};
+
+	pmu {
+		compatible = "arm,armv8-pmuv3";
+		interrupts = <0x1 0x7 0x4>;
+	};
+
+	reserved-memory {
+		#address-cells = <0x2>;
+		#size-cells = <0x2>;
+		ranges;
+
+		a710_sram@400000 {
+			reg = <0x0 0x00400000 0x0 0x00100000>;
+			no-map;
+		};
+
+		r52_sram0@500000 {
+			reg = <0x0 0x00500000 0x0 0x00200000>;
+			no-map;
+		};
+
+		r52_sram1@700000 {
+			reg = <0x0 0x00700000 0x0 0x00200000>;
+			no-map;
+		};
+
+		m55_sram@900000 {
+			reg = <0x0 0x00900000 0x0 0x00100000>;
+			no-map;
+		};
+
+		shared_sram@a00000 {
+			reg = <0x0 0x00a00000 0x0 0x00200000>;
+			no-map;
+		};
+	};
+};

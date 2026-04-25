@@ -12,12 +12,16 @@
 
 ```text
 +------------------------+        +-------------------------------+
-| Buildroot external     |        | QBox platform/buildroot       |
-| tree                   |        |                               |
-|                        |        |  conf_aarch64.lua             |
-|  qbox_a710_defconfig   | -----> |  fw/Artifacts/Image.bin       |
-|  linux.config          |        |  fw/Artifacts/qbox_a710.dtb   |
-|  qbox_a710_soc.dts     |        |  fw/Artifacts/rootfs.cpio     |
+| sources/linux          |        | QBox platform/buildroot       |
+| git submodule          |        |                               |
+|  + linux.config        | -----> |  fw/Artifacts/Image.bin       |
++------------------------+        |                               |
+                                  |  conf_aarch64.lua             |
++------------------------+        |  fw/Artifacts/qbox_a710.dtb   |
+| Buildroot external     | -----> |  fw/Artifacts/rootfs.cpio     |
+| rootfs/DTB only        |        |                               |
+|  qbox_a710_defconfig   |        |                               |
+|  qbox_a710_soc.dts     |        |                               |
 |  rootfs overlay        |        |                               |
 +------------------------+        +---------------+---------------+
                                                 |
@@ -39,8 +43,9 @@
 
 | Component | Responsibility |
 | --- | --- |
-| Buildroot external tree | Build Linux kernel, DTB, initramfs, and later ext4 rootfs. |
-| QBox Buildroot platform | Consume Buildroot artifacts and model the M1 hardware subset. |
+| `sources/linux` submodule | Build the AArch64 Linux `Image` outside Buildroot. |
+| Buildroot external tree | Build rootfs/DTB artifacts and later ext4 rootfs; it must not build the kernel. |
+| QBox Buildroot platform | Consume the staged Linux + Buildroot artifacts and model the M1 hardware subset. |
 | QBox loader | Place kernel, DTB, initramfs, and bootloader at fixed addresses. |
 | PL011 UART | Provide first boot console. |
 | GICv3/timer | Provide Linux interrupt and timer services. |
@@ -48,19 +53,20 @@
 
 ## Boot sequence
 
-1. Buildroot produces `Image`, `qbox_a710_soc.dtb`, and `rootfs.cpio`.
-2. A staging step copies or symlinks those artifacts into
+1. Buildroot produces `qbox_a710_soc.dtb` and `rootfs.cpio` only.
+2. The standalone Linux script builds `Image` from `sources/linux`.
+3. A staging step copies or symlinks those artifacts into
    `qbox/platforms/buildroot/fw/Artifacts/`.
-3. `platforms-vp` loads `platforms/buildroot/conf_aarch64.lua`.
-4. The QBox loader writes:
+4. `platforms-vp` loads `platforms/buildroot/conf_aarch64.lua`.
+5. The QBox loader writes:
    - kernel to `_KERNEL64_LOAD_ADDR`.
    - DTB to `_DTB_LOAD_ADDR`.
    - initramfs to `_INITRD_LOAD_ADDR`.
    - bootloader to `INITIAL_DDR_SPACE`.
-5. CPU0 starts at the bootloader entry.
-6. PSCI brings up secondary A710 cores if the kernel and DTB agree.
-7. Linux prints logs to PL011 UART0.
-8. Linux mounts initramfs and starts BusyBox init.
+6. CPU0 starts at the bootloader entry.
+7. PSCI brings up secondary A710 cores if the kernel and DTB agree.
+8. Linux prints logs to PL011 UART0.
+9. Linux mounts initramfs and starts BusyBox init.
 
 ## QBox platform design
 
@@ -89,24 +95,32 @@ Keep initially:
 - GICv3 and timer interrupt wiring.
 - `LIBQEMU_TARGETS=aarch64`.
 
-## Buildroot design
+## Buildroot and Linux source design
 
 Use `BR2_EXTERNAL` so the Buildroot board support remains project-controlled
-without vendoring all Buildroot source into QBox.
+without vendoring all Buildroot source into QBox. Buildroot owns the rootfs and
+DTB post-image step only; Linux owns kernel image generation from the separate
+`sources/linux` submodule.
 
 Recommended build command shape:
 
 ```bash
-make -C buildroot O=/build/qbox_dev/build/buildroot-a710 \
-  BR2_EXTERNAL=/build/qbox_dev/buildroot/external/qbox_arm64 \
-  qbox_a710_soc_defconfig
-make -C buildroot O=/build/qbox_dev/build/buildroot-a710 -j"$(nproc)"
+scripts/build_qbox_buildroot_arm64.sh
+scripts/build_qbox_linux_arm64.sh
+```
+
+Equivalent ownership:
+
+```text
+build/buildroot-a710/images/rootfs.cpio        # Buildroot
+build/buildroot-a710/images/qbox_a710_soc.dtb # Buildroot post-image hook
+build/linux-a710/arch/arm64/boot/Image        # sources/linux submodule
 ```
 
 Artifact staging should be explicit:
 
 ```bash
-install -D build/buildroot-a710/images/Image \
+install -D build/linux-a710/arch/arm64/boot/Image \
   qbox/platforms/buildroot/fw/Artifacts/Image.bin
 install -D build/buildroot-a710/images/qbox_a710_soc.dtb \
   qbox/platforms/buildroot/fw/Artifacts/qbox_a710_soc.dtb
@@ -165,3 +179,4 @@ Use existing router and memory patterns:
 | 4 x A710 in M1 | Matches user target while staying inside Linux application-cluster scope. |
 | R52/M55 deferred | Avoids mixing RTOS and heterogeneous-core modeling with initial Linux bring-up. |
 | Artifact staging explicit | Makes generated files auditable and reproducible. |
+| Linux as source submodule | Keeps kernel source/version control independent from Buildroot rootfs generation. |

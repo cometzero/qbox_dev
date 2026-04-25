@@ -8,19 +8,21 @@ technical requirements.
 
 ## Functional requirements
 
-### FR-1: Buildroot artifact generation
+### FR-1: Source and artifact generation
 
-The project must produce these artifacts for Milestone 1:
+The project must use source submodules for external source trees and produce
+these artifacts for Milestone 1:
 
-| Artifact | Required | Description |
-| --- | --- | --- |
-| `Image` or `Image.bin` | Yes | Uncompressed AArch64 Linux kernel image. |
-| `qbox_a710_soc.dtb` | Yes | Device tree blob matching the QBox platform map. |
-| `rootfs.cpio` | Yes | Initramfs root filesystem for first userspace proof. |
-| `rootfs.ext4` | Later | Block rootfs for post-initramfs validation. |
+| Artifact | Required | Producer | Description |
+| --- | --- | --- | --- |
+| `Image` or `Image.bin` | Yes | `sources/linux` standalone Linux build | Uncompressed AArch64 Linux kernel image. |
+| `qbox_a710_soc.dtb` | Yes | Buildroot post-image hook using the QBox DTS template | Device tree blob matching the QBox platform map. |
+| `rootfs.cpio` | Yes | Buildroot rootfs-only build | Initramfs root filesystem for first userspace proof. |
+| `rootfs.ext4` | Later | Buildroot rootfs-only build | Block rootfs for post-initramfs validation. |
 
-Artifacts must be generated under a reproducible Buildroot output directory and
-then staged, copied, or symlinked into the QBox platform artifact directory.
+Buildroot must not enable `BR2_LINUX_KERNEL` for M1. Linux is built from the
+separate `sources/linux` git submodule and then staged with the Buildroot
+rootfs/DTB artifacts into the QBox platform artifact directory.
 
 ### FR-2: Separate QBox platform lane
 
@@ -51,10 +53,11 @@ The first Buildroot Linux boot must use:
 The implementation must provide repeatable verification for:
 
 1. Repository baseline.
-2. Buildroot artifact existence.
-3. QBox build.
-4. Linux boot to initramfs userspace.
-5. Later ext4 rootfs boot.
+2. Buildroot rootfs/DTB artifact existence.
+3. Standalone Linux `Image` artifact existence.
+4. QBox build.
+5. Linux boot to initramfs userspace.
+6. Later ext4 rootfs boot.
 
 ### FR-5: Future expansion boundaries
 
@@ -120,11 +123,14 @@ console=ttyAMA0 earlycon=pl011,0x10000000 root=/dev/vda rw rootwait loglevel=8
 Recommended layout:
 
 ```text
+sources/
+  buildroot/        # git submodule, Buildroot source
+  linux/            # git submodule, upstream Linux source
 buildroot/external/qbox_arm64/
   Config.in
   external.mk
   board/qbox/a710_soc/
-    linux.config
+    linux.config    # consumed by scripts/build_qbox_linux_arm64.sh
     rootfs_overlay/
     post-build.sh
     post-image.sh
@@ -133,14 +139,21 @@ buildroot/external/qbox_arm64/
   configs/qbox_a710_soc_defconfig
 ```
 
-Minimum defconfig requirements:
+Minimum Buildroot defconfig requirements:
 
 - `BR2_aarch64=y`.
 - Internal toolchain initially.
-- Linux kernel enabled with AArch64 `Image` output.
+- No `BR2_LINUX_KERNEL*` options; Buildroot generates rootfs/DTB only.
 - CPIO initramfs enabled for M1.
 - BusyBox userspace.
 - Optional SSH packages only after console boot works.
+
+Minimum standalone Linux build requirements:
+
+- Build from `sources/linux`.
+- Reuse the Buildroot-generated cross toolchain.
+- Merge `board/qbox/a710_soc/linux.config`.
+- Produce `build/linux-a710/arch/arm64/boot/Image`.
 
 ## QBox requirements
 
@@ -159,7 +172,8 @@ The Buildroot QBox platform config must:
 | Gate | Command or proof | Pass criteria |
 | --- | --- | --- |
 | Baseline | `bash scripts/check_arm64_boot_lane.sh` | Existing Ubuntu AArch64 lane and Buildroot gap are confirmed. |
-| Buildroot artifacts | `ls build/buildroot-a710/images/{Image,qbox_a710_soc.dtb,rootfs.cpio}` | Required files exist and are non-empty. |
+| Buildroot rootfs/DTB | `ls build/buildroot-a710/images/{qbox_a710_soc.dtb,rootfs.cpio}` | Required files exist and are non-empty; no Buildroot `Image` is required. |
+| Standalone Linux Image | `ls build/linux-a710/arch/arm64/boot/Image` | Kernel image from `sources/linux` exists and is non-empty. |
 | QBox build | `cmake --preset gcc -DLIBQEMU_TARGETS=aarch64 && cmake --build --preset gcc --parallel` | Build exits 0. |
 | Linux initramfs boot | `platforms-vp -l platforms/buildroot/conf_aarch64.lua` | BusyBox init or shell reached. |
 | Ext4 boot | virtio rootfs boot log | `/dev/vda` rootfs mounts and init completes. |

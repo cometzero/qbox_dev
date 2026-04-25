@@ -1,2 +1,5 @@
 .omx/
 .tools/
+build/
+build-*/
+build_*/
