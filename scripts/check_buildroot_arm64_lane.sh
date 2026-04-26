@@ -156,6 +156,8 @@ require_grep 'arm_smmuv3' "${repo_root}/scripts/build_qbox_buildroot_platform.sh
 require_grep 'qemu_cpu_hexagon' "${repo_root}/scripts/build_qbox_buildroot_platform.sh" "QBox Hexagon build target"
 require_grep 'arm_smmuv3\.so' "${repo_root}/scripts/run_qbox_buildroot_boot.sh" "QBox SMMUv3 runtime module check"
 require_grep 'qemu_cpu_hexagon\.so' "${repo_root}/scripts/run_qbox_buildroot_boot.sh" "QBox Hexagon runtime module check"
+require_grep 'QBOX_BOOT_NETDEV_STR' "${platform}" "QBox Apollo netdev runtime override"
+require_grep 'QBOX_BOOT_HOSTFWD' "${repo_root}/scripts/run_qbox_buildroot_boot.sh" "QBox boot hostfwd conflict policy"
 require_grep 'CAP_DIRECT_TLM' "${qbox_root}/systemc-components/apollo_hexagon_dma/include/apollo_hexagon_dma.h" "QBox Apollo Hexagon DMA direct path capability"
 require_grep 'CAP_SMMU_TRANSLATED' "${qbox_root}/systemc-components/apollo_hexagon_dma/include/apollo_hexagon_dma.h" "QBox Apollo Hexagon DMA future translated capability"
 require_grep 'translated_dma' "${qbox_root}/systemc-components/apollo_hexagon_dma/include/apollo_hexagon_dma.h" "QBox Apollo Hexagon DMA translated path seam"

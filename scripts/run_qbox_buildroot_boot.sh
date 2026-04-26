@@ -7,6 +7,8 @@ vp=${QBOX_PLATFORMS_VP:-"${qbox_root}/build/platforms-vp"}
 log_dir=${QBOX_VERIFICATION_DIR:-"${repo_root}/build/verification"}
 timeout_s=${QBOX_BOOT_TIMEOUT:-0}
 log_path=${QBOX_BOOT_LOG:-"${log_dir}/apollo-qbox-buildroot-boot.log"}
+default_netdev_str="type=user,hostfwd=tcp::2222-:22,hostfwd=tcp::2221-:21,hostfwd=tcp::56283-:56283,hostfwd=tcp::55534-:65534,hostfwd=tcp::55535-:65535"
+default_hostfwd_ports=(2222 2221 56283 55534 55535)
 tty_state=""
 if [[ -t 0 ]]; then
   tty_state=$(stty -g < /dev/tty 2>/dev/null || true)
@@ -24,6 +26,78 @@ trap restore_tty EXIT
 if [[ "${log_path}" != /* ]]; then
   log_path="${repo_root}/${log_path}"
 fi
+
+can_bind_tcp_port() {
+  local port=$1
+
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "${port}" <<'PY' >/dev/null 2>&1
+import socket
+import sys
+
+port = int(sys.argv[1])
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+try:
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("0.0.0.0", port))
+finally:
+    sock.close()
+PY
+    return $?
+  fi
+
+  if command -v ss >/dev/null 2>&1; then
+    ! ss -Htan "sport = :${port}" 2>/dev/null | grep -q .
+    return $?
+  fi
+
+  # Without python3 or ss, keep the historical behavior and let QEMU report
+  # any bind failure.
+  return 0
+}
+
+configure_netdev() {
+  local hostfwd_mode=${QBOX_BOOT_HOSTFWD:-auto}
+  local busy_ports=()
+  local port
+
+  if [[ -n "${QBOX_BOOT_NETDEV_STR:-}" ]]; then
+    export QBOX_BOOT_NETDEV_STR
+    return
+  fi
+
+  case "${hostfwd_mode}" in
+    auto)
+      for port in "${default_hostfwd_ports[@]}"; do
+        if ! can_bind_tcp_port "${port}"; then
+          busy_ports+=("${port}")
+        fi
+      done
+
+      if (( ${#busy_ports[@]} == 0 )); then
+        export QBOX_BOOT_NETDEV_STR="${default_netdev_str}"
+      else
+        export QBOX_BOOT_NETDEV_STR="type=user"
+        cat >&2 <<EOF_NET
+Host forwarding ports unavailable: ${busy_ports[*]}
+Falling back to QEMU user networking without host forwards.
+Set QBOX_BOOT_HOSTFWD=on to require the default forwards, or set
+QBOX_BOOT_NETDEV_STR='type=user,hostfwd=tcp::<host>-:<guest>,...' to override.
+EOF_NET
+      fi
+      ;;
+    on|1|true|yes)
+      export QBOX_BOOT_NETDEV_STR="${default_netdev_str}"
+      ;;
+    off|0|false|no)
+      export QBOX_BOOT_NETDEV_STR="type=user"
+      ;;
+    *)
+      echo "Invalid QBOX_BOOT_HOSTFWD=${hostfwd_mode}; use auto, on, or off" >&2
+      exit 1
+      ;;
+  esac
+}
 
 if [[ ! -x "${vp}" ]]; then
   echo "platforms-vp is missing or not executable: ${vp}" >&2
@@ -66,6 +140,7 @@ if [[ ! -s "${hexagon_firmware}" ]]; then
 fi
 
 mkdir -p "$(dirname "${log_path}")"
+configure_netdev
 
 run_cmd=("${vp}" -l platforms/buildroot/conf_aarch64.lua)
 if [[ "${timeout_s}" != "0" ]]; then
@@ -82,6 +157,7 @@ cat >&2 <<EOF_MSG
 Streaming QBox UART log to stdout.
 Log file: ${log_path}
 Timeout: ${timeout_msg}
+Network: ${QBOX_BOOT_NETDEV_STR}
 At the Buildroot login prompt: user=root, no password.
 Return to the host shell with: Ctrl-C.
 Inside the guest, exit or Ctrl-D only logs out; QBox keeps running.
