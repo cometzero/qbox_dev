@@ -8,8 +8,8 @@
 	shallow = false
 [submodule "sources/linux"]
 	path = sources/linux
-	url = https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
-	branch = master
+	url = https://github.com/cometzero/linux.git
+	branch = feature/qbox_dev
 	shallow = false
 [submodule "sources/qemu"]
 	path = sources/qemu
