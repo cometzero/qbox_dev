@@ -7,6 +7,20 @@ vp=${QBOX_PLATFORMS_VP:-"${qbox_root}/build/platforms-vp"}
 log_dir=${QBOX_VERIFICATION_DIR:-"${repo_root}/build/verification"}
 timeout_s=${QBOX_BOOT_TIMEOUT:-0}
 log_path=${QBOX_BOOT_LOG:-"${log_dir}/apollo-qbox-buildroot-boot.log"}
+tty_state=""
+if [[ -t 0 ]]; then
+  tty_state=$(stty -g < /dev/tty 2>/dev/null || true)
+fi
+
+restore_tty() {
+  if [[ -n "${tty_state}" ]]; then
+    stty "${tty_state}" < /dev/tty 2>/dev/null \
+      || stty sane < /dev/tty 2>/dev/null \
+      || true
+  fi
+}
+trap restore_tty EXIT
+
 if [[ "${log_path}" != /* ]]; then
   log_path="${repo_root}/${log_path}"
 fi
@@ -56,7 +70,9 @@ Streaming QBox UART log to stdout.
 Log file: ${log_path}
 Timeout: ${timeout_msg}
 At the Buildroot login prompt: user=root, no password.
-Exit the shell with: exit  (or Ctrl-D). Stop QBox simulation with: Ctrl-C.
+Return to the host shell with: Ctrl-C.
+Inside the guest, exit or Ctrl-D only logs out; QBox keeps running.
+If the terminal is garbled after a forced kill, run: stty sane
 EOF_MSG
 
 cd "${qbox_root}"

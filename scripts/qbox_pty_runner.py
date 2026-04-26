@@ -10,6 +10,7 @@ login sessions.
 from __future__ import annotations
 
 import argparse
+import atexit
 import errno
 import fcntl
 import os
@@ -87,14 +88,39 @@ def main() -> int:
         copy_winsize(stdin_fd, slave_fd)
 
     old_tty_attrs = None
+    tty_restored = False
     proc: subprocess.Popen[bytes] | None = None
+
+    def restore_terminal() -> None:
+        nonlocal tty_restored
+        if tty_restored or old_tty_attrs is None:
+            return
+        try:
+            # Flush pending cbreak-mode input before returning to the parent
+            # shell. This prevents an interrupt/quit keystroke from leaking
+            # into the prompt after QBox exits.
+            termios.tcsetattr(stdin_fd, termios.TCSAFLUSH, old_tty_attrs)
+        except termios.error:
+            pass
+        tty_restored = True
 
     def handle_winch(signum: int, frame: object) -> None:
         if interactive_stdin:
             copy_winsize(stdin_fd, master_fd)
 
+    def handle_termination(signum: int, frame: object) -> None:
+        if proc is not None:
+            terminate_process_group(proc, signum)
+        restore_terminal()
+        raise SystemExit(128 + signum)
+
     previous_winch = signal.getsignal(signal.SIGWINCH)
     signal.signal(signal.SIGWINCH, handle_winch)
+    handled_signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGQUIT)
+    previous_handlers = {sig: signal.getsignal(sig) for sig in handled_signals}
+    for sig in handled_signals:
+        signal.signal(sig, handle_termination)
+    atexit.register(restore_terminal)
 
     try:
         if interactive_stdin:
@@ -190,9 +216,10 @@ def main() -> int:
                     return proc.wait()
         return 130
     finally:
-        if old_tty_attrs is not None:
-            termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_tty_attrs)
+        restore_terminal()
         signal.signal(signal.SIGWINCH, previous_winch)
+        for sig, handler in previous_handlers.items():
+            signal.signal(sig, handler)
         for fd in (master_fd, slave_fd):
             if fd >= 0:
                 try:
