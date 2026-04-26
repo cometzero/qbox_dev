@@ -132,6 +132,8 @@
 			     <0x00 0x235 0x04>;
 		interrupt-names = "doorbell", "error";
 		iommus = <&smmu 0x1>;
+		apollo,dma-path = "direct-tlm";
+		apollo,smmu-stream-id = <0x1>;
 		dma-coherent;
 		memory-region = <&hexagon_sram>, <&shared_sram>;
 		memory-region-names = "firmware", "dma-test";
