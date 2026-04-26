@@ -1,22 +1,23 @@
 # Apollo SoC / apollo-qbox 하드웨어 아키텍처
 
-> 기준일: 2026-04-25
+> 기준일: 2026-04-26
 > 기준 구현: `sources/qbox/platforms/buildroot/conf_aarch64.lua` + `configs/linux/apollo_soc.dts`
 
 ## 요약
 
-현재 checkout에서 QBox가 플랫폼 구성을 자동으로 Graphviz/DOT/그림 파일로 export하는 사용자용 기능은 확인되지 않았습니다. 대신 현재 QBox Lua 플랫폼과 DTS를 기준으로 draw.io 원본 다이어그램을 작성했습니다.
+현재 checkout에서 QBox가 플랫폼 구성을 자동으로 Graphviz/DOT/그림 파일로 export하는 사용자용 기능은 확인되지 않았습니다. 기존 draw.io/SVG는 1차 A710 Linux 부팅 구성을 보여주며, 최신 SMMUv3/Hexagon 확장은 아래 Mermaid 그림과 표에 반영했습니다.
 
 - draw.io 원본: [`apollo-qbox-hw-architecture.drawio`](./apollo-qbox-hw-architecture.drawio)
 - 문서용 SVG export: [`apollo-qbox-hw-architecture.svg`](./apollo-qbox-hw-architecture.svg)
 - 1차 부팅 대상: 4 x Cortex-A710, GICv3, PL011 UART0, 4 GiB DRAM, initramfs 기반 Buildroot Linux
-- 이후 확장 대상: 2 x Cortex-R52, 1 x Cortex-M55, UART1/2/3, 명시적 SRAM/SystemC TLM device model
+- 현재 확장 대상: Linux-visible ARM SMMUv3, powered-off Hexagon sidecar, Apollo Hexagon probe driver
+- 이후 확장 대상: 2 x Cortex-R52, 1 x Cortex-M55, UART1/2/3, SystemC TLM device model과 실제 Hexagon firmware
 
 ## 하드웨어 구성 그림
 
 ![Apollo SoC / apollo-qbox hardware architecture](./apollo-qbox-hw-architecture.svg)
 
-> 참고: 위 SVG는 draw.io 원본에서 export한 문서용 그림입니다. 아래 Mermaid는 Markdown에서 빠르게 보기 위한 요약 그림이고, 편집 가능한 원본 그림은 draw.io 파일을 사용하세요.
+> 참고: 위 SVG는 draw.io 원본에서 export한 1차 A710 부팅 구성 그림입니다. SMMUv3/Hexagon 최신 확장은 아래 Mermaid/메모리 맵이 기준이며, 다음 그림 갱신 시 draw.io 원본에도 반영해야 합니다.
 
 ```mermaid
 flowchart LR
@@ -26,6 +27,9 @@ flowchart LR
     ROUTER[QBox router\nTLM address decode]
     UART0[PL011 UART0 console\n0x10000000 / 4 KiB\nSPI 379]
     NET[virtio-mmio-net\n0x1C120000 / 64 KiB\nSPI 18]
+    SMMU[ARM SMMUv3\n0x1C200000 / 128 KiB\nSPI 560-563]
+    HEX[Hexagon sidecar\nqemu_cpu_hexagon powered off\nctrl 0x1C220000 / 896 KiB]
+    HSRAM[Hexagon SRAM\n0x00C00000 / 4 MiB]
     GPEX[qemu_gpex PCIe host\nECAM/PIO/MMIO windows\nSPI 541-544]
     DRAM[DRAM gs_memory\n0x80000000-0x17FFFFFFF\n4 GiB]
     LOAD[loader\nbootloader @ 0x80000000\nImage @ 0x81200000\nDTB @ 0x87600000\nrootfs.cpio @ 0x8A800000]
@@ -39,6 +43,11 @@ flowchart LR
     UART0 --> GIC
     ROUTER --> NET
     NET --> GIC
+    ROUTER --> SMMU
+    SMMU --> GIC
+    ROUTER --> HEX
+    ROUTER --> HSRAM
+    HEX -. DMA master in DTS .-> SMMU
     ROUTER --> GPEX
     GPEX --> GIC
     ROUTER --> DRAM
@@ -85,10 +94,13 @@ flowchart LR
 | Network | `virtio_mmio_net` with user-mode host forwards | Lua `virtionet0_0` |
 | PCIe host | `qemu_gpex` | Lua `gpex_0` |
 
-### 예약/향후 확장 범위
+### SMMUv3/Hexagon 확장 및 예약 범위
 
-| 구성 | 현재 상태 | 향후 작업 |
+| 구성 | 현재 상태 | 다음 작업 |
 | --- | --- | --- |
+| ARM SMMUv3 | QBox `arm_smmuv3` + DTS `arm,smmu-v3`로 Linux probe 완료 | SystemC/PCIe 외 DMA master stream wiring 확대 |
+| Hexagon IP | powered-off sidecar와 SRAM/control/L2VIC/qtimer window 추가 | firmware boot, reset/power control, 실제 DMA traffic 추가 |
+| Hexagon Linux probe | built-in `apollo-hexagon-test` driver가 IOMMU group/DMA selftest 확인 | production driver ABI와 userspace interface 설계 |
 | Cortex-R52 x 2 | 아직 CPU model 미연결 | Zephyr RTOS용 remote/core model 추가 |
 | Cortex-M55 x 1 | 아직 CPU model 미연결 | Zephyr RTOS용 M-profile model 추가 |
 | UART1/2/3 | 아직 미연결 | R52용 2개, M55용 1개 PL011 또는 대체 UART 추가 |
@@ -107,10 +119,15 @@ flowchart LR
 | R52 SRAM1 reserved | `0x00700000` | `0x008FFFFF` | 2 MiB | DTS `reserved-memory` | R52 core 1용 예정 |
 | M55 SRAM reserved | `0x00900000` | `0x009FFFFF` | 1 MiB | DTS `reserved-memory` | M55용 예정 |
 | Shared SRAM reserved | `0x00A00000` | `0x00BFFFFF` | 2 MiB | DTS `reserved-memory` | Heterogeneous cores 공유용 예정 |
+| Hexagon SRAM | `0x00C00000` | `0x00FFFFFF` | 4 MiB | QBox `gs_memory` + DTS `reserved-memory` | Hexagon sidecar/VTCM bring-up window |
 | PL011 UART0 | `0x10000000` | `0x10000FFF` | 4 KiB | QBox `Pl011` + DTS `serial@10000000` | Console, GIC SPI 379 |
 | GIC Distributor | `0x17A00000` | `0x17A0FFFF` | 64 KiB | DTS `intc`; QBox `dist_iface` | QBox interface window는 `0x17A00000`-`0x17A5FFFF` |
 | GIC Redistributors | `0x17A60000` | `0x17ADFFFF` | 512 KiB | DTS `intc`; QBox `redist_iface_0` | QBox interface window는 `0x17A60000`-`0x17C1FFFF` |
 | virtio-mmio-net | `0x1C120000` | `0x1C12FFFF` | 64 KiB | QBox `virtio_mmio_net` | GIC SPI 18 |
+| ARM SMMUv3 | `0x1C200000` | `0x1C21FFFF` | 128 KiB | QBox `arm_smmuv3` + DTS `iommu@1c200000` | Linux IOMMU node, SPI 560-563 |
+| Hexagon control window | `0x1C220000` | `0x1C2FFFFF` | 896 KiB | DTS `hexagon@1c220000` | Linux probe node with `iommus = <&smmu 0x1>` |
+| Hexagon qtimer | `0x1C240000` | `0x1C25FFFF` | 128 KiB | QBox `qemu_hexagon_qtimer` | Routed into Hexagon L2VIC |
+| Hexagon L2VIC | `0x1C260000` | `0x1C27FFFF` | 128 KiB | QBox `hexagon_l2vic` | Routed to powered-off Hexagon IRQ inputs |
 | PCIe ECAM | `0x43B50000` | `0x53B4FFFF` | 256 MiB | QBox `qemu_gpex.ecam_iface` | PCI config space |
 | PCIe PIO | `0x60200000` | `0x602FFFFF` | 1 MiB | QBox `qemu_gpex.pio_iface` | Programmed I/O window |
 | PCIe MMIO | `0x60300000` | `0x7FFFFFFF` | 509 MiB | QBox `qemu_gpex.mmio_iface` | 32-bit MMIO window |
@@ -138,6 +155,8 @@ flowchart LR
 | PMU | PPI 23 / DTS PPI 7 | Lua PMU output + DTS `arm,armv8-pmuv3` |
 | PL011 UART0 | SPI 379 | `pl011_uart_0.irq -> gic_0.spi_in_379` |
 | virtio-mmio-net | SPI 18 | `virtionet0_0.irq_out -> gic_0.spi_in_18` |
+| ARM SMMUv3 eventq/gerror/cmdq-sync/priq | SPI 560-563 | `smmuv3_0.irq_out_* -> gic_0.spi_in_560..563` |
+| Apollo Hexagon DTS doorbell/error | SPI 564-565 | Reserved for future SystemC/Hexagon-to-APSS signaling |
 | qemu_gpex | SPI 541-544 | `gpex_0.irq_out_0..3 -> gic_0.spi_in_541..544` |
 
 ## 부팅 관점의 연결 흐름
@@ -147,11 +166,14 @@ flowchart LR
 3. `loader`가 bootloader, kernel, DTB, rootfs.cpio를 DRAM의 고정 주소에 배치합니다.
 4. CPU0이 `rvbar = 0x80000000`에서 부팅을 시작합니다.
 5. Linux는 DTB의 `console=ttyAMA0 earlycon=pl011,0x10000000` 설정으로 UART0에 로그를 출력합니다.
-6. initramfs는 DTS의 `linux,initrd-start/end`로 전달되며, Buildroot post-image 단계에서 end address가 rootfs 크기에 맞게 채워집니다.
+6. Linux는 `iommu@1c200000`에서 SMMUv3를 probe하고 `hexagon@1c220000`을 `apollo-hexagon-test` driver에 bind합니다.
+7. initramfs는 DTS의 `linux,initrd-start/end`로 전달되며, Buildroot post-image 단계에서 end address가 rootfs 크기에 맞게 채워집니다.
 
 ## 주의 사항
 
 - `fallback_0`는 `0x0`부터 32 GiB까지 넓게 잡힌 fallback memory입니다. 현재 1차 부팅을 단순화하기 위한 안전망이며 DRAM/MMIO와 주소 범위가 겹칠 수 있습니다. R52/M55/SystemC device를 실제로 추가할 때는 해당 주소 window를 명시적인 memory/device model로 라우팅하도록 정리해야 합니다.
-- DTS의 SRAM 영역은 Linux가 사용하지 않도록 `no-map`으로 예약한 상태입니다. 아직 QBox Lua 쪽에서 SRAM별 `gs_memory` 또는 SystemC TLM target으로 분리 모델링되지는 않았습니다.
+- DTS의 A710/R52/M55/shared SRAM 영역은 Linux가 사용하지 않도록 `no-map`으로 예약한 상태입니다. Hexagon SRAM(`0x00C00000`-`0x00FFFFFF`)은 QBox `gs_memory`로 추가됐고, 나머지 SRAM은 후속 R52/M55/SystemC 단계에서 명시 모델링해야 합니다.
+- Hexagon CPU는 현재 Linux boot 안정성을 위해 `start_powered_off=true`로 연결됩니다. 실제 Hexagon firmware, reset/power control, DMA traffic은 다음 단계에서 추가해야 합니다.
+- SMMUv3는 Linux가 probe 가능한 sysbus model로 먼저 추가했습니다. 실제 SystemC device DMA가 SMMUv3를 통과하도록 하는 TBU/stream wiring은 후속 작업입니다.
 - DTS의 GIC reg 크기와 QBox `arm_gicv3` interface window 크기는 표현 단위가 다릅니다. Linux에 노출되는 DTB reg와 QBox internal interface mapping을 구분해서 봐야 합니다.
 - 이 문서는 현재 1차 목표인 A710 Linux/Buildroot 부팅 경로 기준입니다. R52/M55/추가 UART/디바이스 모델이 들어가면 draw.io와 메모리 맵을 함께 갱신해야 합니다.

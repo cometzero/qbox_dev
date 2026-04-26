@@ -34,6 +34,11 @@ fi
 required_modules=(
   loader.so
   cpu_arm_cortexA710.so
+  arm_smmuv3.so
+  qemu_cpu_hexagon.so
+  hexagon_globalreg.so
+  hexagon_l2vic.so
+  qemu_hexagon_qtimer.so
   arm_gicv3.so
   virtio_mmio_net.so
   qemu_gpex.so

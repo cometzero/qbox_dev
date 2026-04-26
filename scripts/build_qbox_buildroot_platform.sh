@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 qbox_root=${QBOX_ROOT:-"${repo_root}/sources/qbox"}
 libqemu_src=${QBOX_LIBQEMU_SRC:-"${repo_root}/sources/qemu"}
+libqemu_targets=${QBOX_LIBQEMU_TARGETS:-"aarch64;hexagon"}
 ccache_bin=${QBOX_CCACHE:-$(command -v ccache || true)}
 use_ccache=${QBOX_USE_CCACHE:-1}
 ccache_dir=${QBOX_QBOX_CCACHE_DIR:-"${repo_root}/build/ccache/qbox"}
@@ -21,7 +22,7 @@ if [[ ! -f "${libqemu_src}/qemu.cmake" ]]; then
 fi
 
 cmake_args=(
-  -DLIBQEMU_TARGETS=aarch64
+  -DLIBQEMU_TARGETS="${libqemu_targets}"
   -DCPM_libqemu_SOURCE="${libqemu_src}"
 )
 if [[ "${use_ccache}" != "0" ]]; then
@@ -39,11 +40,13 @@ if [[ "${use_ccache}" != "0" ]]; then
 fi
 
 echo "QBox libqemu source: ${libqemu_src}"
+echo "QBox libqemu targets: ${libqemu_targets}"
 (cd "${qbox_root}" && cmake --preset gcc "${cmake_args[@]}")
 
 if [[ "${1:-}" == "--config-only" ]]; then
   echo "Configured QBox buildroot platform output: ${qbox_root}/build"
   echo "QBox libqemu source: ${libqemu_src}"
+  echo "QBox libqemu targets: ${libqemu_targets}"
   if [[ "${use_ccache}" != "0" ]]; then
     echo "QBox ccache launcher: ${ccache_bin}"
     echo "QBox ccache dir: ${CCACHE_DIR}"
@@ -56,6 +59,11 @@ targets=(
   platforms-vp
   loader
   cpu_arm_cortexA710
+  arm_smmuv3
+  qemu_cpu_hexagon
+  hexagon_globalreg
+  hexagon_l2vic
+  qemu_hexagon_qtimer
   arm_gicv3
   virtio_mmio_net
   qemu_gpex

@@ -113,6 +113,30 @@
 		status = "okay";
 	};
 
+	smmu: iommu@1c200000 {
+		compatible = "arm,smmu-v3";
+		reg = <0x00 0x1c200000 0x00 0x20000>;
+		interrupts = <0x00 0x230 0x04>,
+			     <0x00 0x231 0x04>,
+			     <0x00 0x232 0x04>,
+			     <0x00 0x233 0x04>;
+		interrupt-names = "eventq", "gerror", "cmdq-sync", "priq";
+		#iommu-cells = <0x1>;
+		dma-coherent;
+	};
+
+	hexagon@1c220000 {
+		compatible = "apollo,hexagon-ip";
+		reg = <0x00 0x1c220000 0x00 0xe0000>;
+		interrupts = <0x00 0x234 0x04>,
+			     <0x00 0x235 0x04>;
+		interrupt-names = "doorbell", "error";
+		iommus = <&smmu 0x1>;
+		dma-coherent;
+		memory-region = <&hexagon_sram>;
+		status = "okay";
+	};
+
 	pmu {
 		compatible = "arm,armv8-pmuv3";
 		interrupts = <0x1 0x7 0x4>;
@@ -145,6 +169,11 @@
 
 		shared_sram@a00000 {
 			reg = <0x0 0x00a00000 0x0 0x00200000>;
+			no-map;
+		};
+
+		hexagon_sram: hexagon_sram@c00000 {
+			reg = <0x0 0x00c00000 0x0 0x00400000>;
 			no-map;
 		};
 	};
