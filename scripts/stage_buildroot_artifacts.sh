@@ -20,6 +20,9 @@ require_artifact "${linux_image}"
 require_artifact "${buildroot_images}/apollo_soc.dtb"
 require_artifact "${buildroot_images}/rootfs.cpio"
 
+"${repo_root}/scripts/build_qbox_hexagon_firmware.sh"
+require_artifact "${artifacts_dir}/apollo_hexagon_dma.bin"
+
 rm -f \
   "${artifacts_dir}/qbox_a710_soc.dtb" \
   "${artifacts_dir}/qbox-a710-staged-artifacts.json"
@@ -36,7 +39,8 @@ cat > "${manifest}" <<JSON
   "artifacts_dir": "${artifacts_dir}",
   "Image.bin": $(stat -c '%s' "${artifacts_dir}/Image.bin"),
   "apollo_soc.dtb": $(stat -c '%s' "${artifacts_dir}/apollo_soc.dtb"),
-  "rootfs.cpio": $(stat -c '%s' "${artifacts_dir}/rootfs.cpio")
+  "rootfs.cpio": $(stat -c '%s' "${artifacts_dir}/rootfs.cpio"),
+  "apollo_hexagon_dma.bin": $(stat -c '%s' "${artifacts_dir}/apollo_hexagon_dma.bin")
 }
 JSON
 

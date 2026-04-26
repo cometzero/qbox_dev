@@ -35,6 +35,7 @@ required_modules=(
   loader.so
   cpu_arm_cortexA710.so
   arm_smmuv3.so
+  apollo_hexagon_dma.so
   qemu_cpu_hexagon.so
   hexagon_globalreg.so
   hexagon_l2vic.so
@@ -56,6 +57,13 @@ for module in "${required_modules[@]}"; do
     exit 1
   fi
 done
+
+hexagon_firmware="${qbox_root}/platforms/buildroot/fw/Artifacts/apollo_hexagon_dma.bin"
+if [[ ! -s "${hexagon_firmware}" ]]; then
+  echo "Hexagon firmware is missing: ${hexagon_firmware}" >&2
+  echo "Build it first: scripts/build_qbox_hexagon_firmware.sh" >&2
+  exit 1
+fi
 
 mkdir -p "$(dirname "${log_path}")"
 

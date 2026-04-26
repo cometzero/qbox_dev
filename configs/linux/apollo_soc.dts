@@ -133,7 +133,8 @@
 		interrupt-names = "doorbell", "error";
 		iommus = <&smmu 0x1>;
 		dma-coherent;
-		memory-region = <&hexagon_sram>;
+		memory-region = <&hexagon_sram>, <&shared_sram>;
+		memory-region-names = "firmware", "dma-test";
 		status = "okay";
 	};
 
@@ -167,7 +168,7 @@
 			no-map;
 		};
 
-		shared_sram@a00000 {
+		shared_sram: shared_sram@a00000 {
 			reg = <0x0 0x00a00000 0x0 0x00200000>;
 			no-map;
 		};

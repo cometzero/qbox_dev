@@ -39,6 +39,8 @@ if [[ "${use_ccache}" != "0" ]]; then
   )
 fi
 
+"${repo_root}/scripts/build_qbox_hexagon_firmware.sh"
+
 echo "QBox libqemu source: ${libqemu_src}"
 echo "QBox libqemu targets: ${libqemu_targets}"
 (cd "${qbox_root}" && cmake --preset gcc "${cmake_args[@]}")
@@ -60,6 +62,7 @@ targets=(
   loader
   cpu_arm_cortexA710
   arm_smmuv3
+  apollo_hexagon_dma
   qemu_cpu_hexagon
   hexagon_globalreg
   hexagon_l2vic
