@@ -81,19 +81,20 @@ Create a Buildroot lane outside the upstream `sources/qbox/` submodule first, th
 Recommended workspace layout:
 
 ```text
-buildroot/
-  external/apollo_qbox/
+configs/
+  buildroot/external/apollo_qbox/
     Config.in
     external.mk
     board/apollo/apollo-qbox/
-      linux.config
       rootfs_overlay/
       post-build.sh
       post-image.sh
       genimage.cfg
-      apollo_soc.dts
       readme.txt
     configs/apollo_qbox_defconfig
+  linux/
+    linux.config
+    apollo_soc.dts
 build/
   buildroot-a710/
     images/
@@ -134,8 +135,8 @@ sources/qbox/platforms/buildroot/
   conf_aarch64.lua
   fw/
     arm64_bootloader.lua      # initially copied/reused from ubuntu fw
-    apollo_soc.dts         # generated or copied from Buildroot output
     Artifacts/                # ignored/generated
+      apollo_soc.dtb          # staged from Buildroot output
 ```
 
 Implementation steps:
@@ -218,7 +219,7 @@ Expected commands after Buildroot scaffold exists:
 
 ```bash
 make -C buildroot O=/build/qbox_dev/build/buildroot-a710 \
-  BR2_EXTERNAL=/build/qbox_dev/buildroot/external/apollo_qbox \
+  BR2_EXTERNAL=/build/qbox_dev/configs/buildroot/external/apollo_qbox \
   apollo_qbox_defconfig
 make -C buildroot O=/build/qbox_dev/build/buildroot-a710 -j"$(nproc)"
 ls -l build/buildroot-a710/images/Image \

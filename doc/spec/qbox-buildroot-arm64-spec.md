@@ -131,17 +131,18 @@ sources/
   buildroot/        # git submodule, Buildroot source
   linux/            # git submodule, upstream Linux source
   qemu/             # git submodule, QEMU/libqemu source consumed by QBox
-buildroot/external/apollo_qbox/
+configs/buildroot/external/apollo_qbox/
   Config.in
   external.mk
   board/apollo/apollo-qbox/
-    linux.config    # consumed by scripts/build_qbox_linux_arm64.sh
     rootfs_overlay/
     post-build.sh
     post-image.sh
     genimage.cfg
-    apollo_soc.dts
   configs/apollo_qbox_defconfig
+configs/linux/
+  linux.config      # consumed by scripts/build_qbox_linux_arm64.sh
+  apollo_soc.dts    # consumed by Buildroot post-image hook
 ```
 
 Minimum Buildroot defconfig requirements:
@@ -157,7 +158,7 @@ Minimum standalone Linux build requirements:
 
 - Build from `sources/linux`.
 - Reuse the Buildroot-generated cross toolchain.
-- Merge `board/apollo/apollo-qbox/linux.config`.
+- Merge `configs/linux/linux.config`.
 - Produce `build/linux-a710/arch/arm64/boot/Image`.
 
 ## QBox requirements

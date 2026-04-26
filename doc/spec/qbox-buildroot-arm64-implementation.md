@@ -42,17 +42,18 @@ Deliverable:
 Create:
 
 ```text
-buildroot/external/apollo_qbox/
+configs/buildroot/external/apollo_qbox/
   Config.in
   external.mk
   board/apollo/apollo-qbox/
-    linux.config
     rootfs_overlay/
     post-build.sh
     post-image.sh
     genimage.cfg
-    apollo_soc.dts
   configs/apollo_qbox_defconfig
+configs/linux/
+  linux.config
+  apollo_soc.dts
 ```
 
 Minimum defconfig contents:
@@ -249,7 +250,7 @@ The report must include:
 
 | Path | Owner |
 | --- | --- |
-| `buildroot/external/apollo_qbox/` | Buildroot rootfs/DTB lane. |
+| `configs/buildroot/external/apollo_qbox/` | Buildroot rootfs/DTB lane. |
 | `sources/buildroot/` | Buildroot upstream source submodule. |
 | `sources/linux/` | Linux upstream source submodule. |
 | `sources/qemu/` | QEMU/libqemu upstream source submodule consumed by QBox. |

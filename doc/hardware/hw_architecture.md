@@ -1,7 +1,7 @@
 # Apollo SoC / apollo-qbox 하드웨어 아키텍처
 
 > 기준일: 2026-04-25
-> 기준 구현: `sources/qbox/platforms/buildroot/conf_aarch64.lua` + `buildroot/external/apollo_qbox/board/apollo/apollo-qbox/apollo_soc.dts`
+> 기준 구현: `sources/qbox/platforms/buildroot/conf_aarch64.lua` + `configs/linux/apollo_soc.dts`
 
 ## 요약
 
@@ -62,7 +62,7 @@ flowchart LR
 | 항목 | 파일 |
 | --- | --- |
 | QBox 플랫폼 구성 | `sources/qbox/platforms/buildroot/conf_aarch64.lua` |
-| Linux device tree | `buildroot/external/apollo_qbox/board/apollo/apollo-qbox/apollo_soc.dts` |
+| Linux device tree | `configs/linux/apollo_soc.dts` |
 | 편집 가능한 하드웨어 그림 | `doc/hardware/apollo-qbox-hw-architecture.drawio` |
 | 커널 artifact load path | `sources/qbox/platforms/buildroot/fw/Artifacts/Image.bin` |
 | DTB artifact load path | `sources/qbox/platforms/buildroot/fw/Artifacts/apollo_soc.dtb` |

@@ -14,14 +14,14 @@
 +------------------------+        +-------------------------------+
 | sources/linux          |        | QBox platform/buildroot       |
 | git submodule          |        |                               |
-|  + linux.config        | -----> |  fw/Artifacts/Image.bin       |
+|  + configs/linux       | -----> |  fw/Artifacts/Image.bin       |
 +------------------------+        |                               |
                                   |  conf_aarch64.lua             |
 +------------------------+        |  fw/Artifacts/apollo_soc.dtb  |
 | Buildroot external     | -----> |  fw/Artifacts/rootfs.cpio     |
 | rootfs/DTB only        |        |                               |
 |  apollo_qbox_defconfig |        |                               |
-|  apollo_soc.dts     |        |                               |
+|  configs/linux/*.dts   |        |                               |
 |  rootfs overlay        |        |                               |
 +------------------------+        +---------------+---------------+
                                                 |

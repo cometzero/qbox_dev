@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 buildroot_src=${QBOX_BUILDROOT_SRC:-"${repo_root}/sources/buildroot"}
-external_tree=${QBOX_BUILDROOT_EXTERNAL:-"${repo_root}/buildroot/external/apollo_qbox"}
+external_tree=${QBOX_BUILDROOT_EXTERNAL:-"${repo_root}/configs/buildroot/external/apollo_qbox"}
 output_dir=${QBOX_BUILDROOT_OUTPUT:-"${repo_root}/build/buildroot-a710"}
 dl_dir=${QBOX_BUILDROOT_DL_DIR:-"${repo_root}/build/buildroot-dl"}
 ccache_dir=${QBOX_BUILDROOT_CCACHE_DIR:-"${repo_root}/build/ccache/buildroot"}
