@@ -61,6 +61,7 @@ targets=(
   qemu_gpex
   uart-pl011
   char_backend_stdio
+  keep_alive
   global_peripheral_initiator
   gs_memory
   router

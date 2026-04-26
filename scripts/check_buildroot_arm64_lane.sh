@@ -98,10 +98,13 @@ require_grep 'cpu_arm_cortexA710' "${platform}" "QBox Cortex-A710 module"
 require_grep 'qbox_a710_soc\.dtb' "${platform}" "Buildroot DTB artifact"
 require_grep 'rootfs\.cpio' "${platform}" "Buildroot initramfs artifact"
 require_grep 'math\.floor\(i / 2\) << 8' "${platform}" "2x2 cluster mp_affinity mapping"
+require_grep 'moduletype = "keep_alive"' "${platform}" "QBox simulation keep-alive component"
 require_grep 'libqemu_src=\$\{QBOX_LIBQEMU_SRC:-"\$\{repo_root\}/sources/qemu"\}' "${repo_root}/scripts/build_qbox_buildroot_platform.sh" "QBox local libqemu source override"
 require_grep 'CPM_libqemu_SOURCE="\$\{libqemu_src\}"' "${repo_root}/scripts/build_qbox_buildroot_platform.sh" "QBox CPM libqemu source override"
 require_grep 'CMAKE_C_COMPILER_LAUNCHER="\$\{ccache_bin\}"' "${repo_root}/scripts/build_qbox_buildroot_platform.sh" "QBox C ccache launcher"
 require_grep 'CMAKE_CXX_COMPILER_LAUNCHER="\$\{ccache_bin\}"' "${repo_root}/scripts/build_qbox_buildroot_platform.sh" "QBox CXX ccache launcher"
+require_grep 'keep_alive' "${repo_root}/scripts/build_qbox_buildroot_platform.sh" "QBox keep_alive build target"
+require_grep 'keep_alive\.so' "${repo_root}/scripts/run_qbox_buildroot_boot.sh" "QBox keep_alive runtime module check"
 
 if git -C "${qbox_root}" ls-files --error-unmatch platforms/buildroot/fw/Artifacts/Image.bin >/dev/null 2>&1; then
   fail "generated Image.bin must not be tracked"

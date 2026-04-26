@@ -25,6 +25,7 @@ required_modules=(
   qemu_gpex.so
   uart-pl011.so
   char_backend_stdio.so
+  keep_alive.so
   global_peripheral_initiator.so
   gs_memory.so
   router.so
