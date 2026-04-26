@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+msg_file=${1:?commit message file is required}
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "commit-msg: python3 is required for commit message validation" >&2
+  exit 1
+fi
+
+python3 - "$msg_file" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+raw_lines = path.read_text(encoding="utf-8").splitlines()
+lines = [line.rstrip("\r") for line in raw_lines if not line.startswith("#")]
+while lines and lines[-1] == "":
+    lines.pop()
+
+errors = []
+if not lines:
+    errors.append("commit message is empty")
+else:
+    header = lines[0]
+    conventional = re.compile(
+        r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)"
+        r"(\([A-Za-z0-9_.-]+\))?!?: .+"
+    )
+    exempt = header.startswith("Merge ") or header.startswith("Revert ")
+    if not exempt and not conventional.match(header):
+        errors.append(
+            "first line must be Conventional Commits style, "
+            "for example: fix: stabilize QBox boot"
+        )
+    if len(header) > 50:
+        errors.append(f"first line is {len(header)} chars; max is 50")
+    if len(lines) > 1 and lines[1] != "":
+        errors.append("second line must be blank when a body is present")
+
+trailer = re.compile(r"^[A-Za-z][A-Za-z0-9-]*: .+")
+signed_off = False
+for idx, line in enumerate(lines, start=1):
+    if "\\n" in line:
+        errors.append(
+            f"line {idx} contains literal \\n; use real line breaks instead"
+        )
+    if line.startswith("Signed-off-by:"):
+        signed_off = True
+    if idx == 1 or line == "" or trailer.match(line):
+        continue
+    if len(line) > 72:
+        errors.append(f"line {idx} is {len(line)} chars; max is 72")
+
+if lines and not signed_off:
+    errors.append("missing Signed-off-by trailer; use git commit -s")
+
+if errors:
+    print("commit-msg hook: rejected commit message", file=sys.stderr)
+    for error in errors:
+        print(f"  - {error}", file=sys.stderr)
+    print("\nExpected format:", file=sys.stderr)
+    print("  fix: concise summary", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("  Explain why the change exists, wrapped at 72 columns.", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("  Tested: command or evidence", file=sys.stderr)
+    print("  Signed-off-by: Name <email>", file=sys.stderr)
+    sys.exit(1)
+PY
