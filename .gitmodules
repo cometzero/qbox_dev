@@ -13,5 +13,6 @@
 	shallow = false
 [submodule "sources/qemu"]
 	path = sources/qemu
-	url = https://github.com/quic/qemu.git
+	url = https://github.com/cometzero/qemu.git
 	shallow = false
+	branch = feature/qbox_dev
