@@ -5,9 +5,11 @@ target_dir=${1:?target directory required}
 
 install -d "${target_dir}/etc"
 cat > "${target_dir}/etc/qbox-release" <<'MARKER'
-NAME="QBox A710 Buildroot"
-QBOX_PLATFORM="qbox_a710_soc"
-QBOX_BOOT_LANE="initramfs-m1"
+NAME="Apollo QBox Buildroot"
+APOLLO_MACHINE="apollo_soc"
+APOLLO_BOARD="apollo-qbox"
+QBOX_PLATFORM="apollo_soc"
+QBOX_BOOT_LANE="initramfs-apollo"
 MARKER
 
 # In the initramfs lane, static /dev/null is needed before BusyBox init can

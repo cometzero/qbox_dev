@@ -6,7 +6,7 @@ qbox_root=${QBOX_ROOT:-"${repo_root}/sources/qbox"}
 vp=${QBOX_PLATFORMS_VP:-"${qbox_root}/build/platforms-vp"}
 log_dir=${QBOX_VERIFICATION_DIR:-"${repo_root}/build/verification"}
 timeout_s=${QBOX_BOOT_TIMEOUT:-0}
-log_path=${QBOX_BOOT_LOG:-"${log_dir}/qbox-a710-buildroot-boot.log"}
+log_path=${QBOX_BOOT_LOG:-"${log_dir}/apollo-qbox-buildroot-boot.log"}
 if [[ "${log_path}" != /* ]]; then
   log_path="${repo_root}/${log_path}"
 fi

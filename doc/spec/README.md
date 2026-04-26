@@ -1,4 +1,4 @@
-# QBox Buildroot ARM64 SoC Specification Set
+# Apollo SoC / apollo-qbox Buildroot Specification Set
 
 This directory decomposes `doc/qbox-buildroot-arm64-soc-boot-plan-2026-04-25.md`
 into implementation-oriented specification documents.
@@ -19,6 +19,6 @@ into implementation-oriented specification documents.
 ## Milestone policy
 
 The first milestone is intentionally narrow: boot Buildroot Linux on the
-AArch64 Cortex-A710 application cluster in QBox. Cortex-R52, Cortex-M55,
-Zephyr, and custom SystemC devices are deferred until the Linux boot proof is
-stable.
+Apollo SoC AArch64 Cortex-A710 application cluster through the apollo-qbox
+board lane in QBox. Cortex-R52, Cortex-M55, Zephyr, and custom SystemC devices
+are deferred until the Linux boot proof is stable.

@@ -1,4 +1,4 @@
-# Specification: QBox Buildroot ARM64 SoC Boot Lane
+# Specification: Apollo SoC / apollo-qbox Buildroot Boot Lane
 
 ## Scope
 
@@ -16,7 +16,7 @@ these artifacts for Milestone 1:
 | Artifact | Required | Producer | Description |
 | --- | --- | --- | --- |
 | `Image` or `Image.bin` | Yes | `sources/linux` standalone Linux build | Uncompressed AArch64 Linux kernel image. |
-| `qbox_a710_soc.dtb` | Yes | Buildroot post-image hook using the QBox DTS template | Device tree blob matching the QBox platform map. |
+| `apollo_soc.dtb` | Yes | Buildroot post-image hook using the QBox DTS template | Device tree blob matching the QBox platform map. |
 | `rootfs.cpio` | Yes | Buildroot rootfs-only build | Initramfs root filesystem for first userspace proof. |
 | `rootfs.ext4` | Later | Buildroot rootfs-only build | Block rootfs for post-initramfs validation. |
 
@@ -101,7 +101,7 @@ required.
 
 ## Device tree requirements
 
-The M1 DTB must include:
+The Apollo SoC M1 DTB must include:
 
 - `/cpus` with 4 Cortex-A710-compatible CPU nodes.
 - PSCI node with `method = "smc"` by default.
@@ -131,17 +131,17 @@ sources/
   buildroot/        # git submodule, Buildroot source
   linux/            # git submodule, upstream Linux source
   qemu/             # git submodule, QEMU/libqemu source consumed by QBox
-buildroot/external/qbox_arm64/
+buildroot/external/apollo_qbox/
   Config.in
   external.mk
-  board/qbox/a710_soc/
+  board/apollo/apollo-qbox/
     linux.config    # consumed by scripts/build_qbox_linux_arm64.sh
     rootfs_overlay/
     post-build.sh
     post-image.sh
     genimage.cfg
-    qbox_a710_soc.dts
-  configs/qbox_a710_soc_defconfig
+    apollo_soc.dts
+  configs/apollo_qbox_defconfig
 ```
 
 Minimum Buildroot defconfig requirements:
@@ -157,7 +157,7 @@ Minimum standalone Linux build requirements:
 
 - Build from `sources/linux`.
 - Reuse the Buildroot-generated cross toolchain.
-- Merge `board/qbox/a710_soc/linux.config`.
+- Merge `board/apollo/apollo-qbox/linux.config`.
 - Produce `build/linux-a710/arch/arm64/boot/Image`.
 
 ## QBox requirements
@@ -165,7 +165,7 @@ Minimum standalone Linux build requirements:
 The Buildroot QBox platform config must:
 
 - Load the Buildroot kernel image at the existing kernel load address.
-- Load `qbox_a710_soc.dtb` at the existing DTB load address.
+- Load `apollo_soc.dtb` at the existing DTB load address.
 - Load `rootfs.cpio` at the existing initrd load address.
 - Load the ARM64 bootloader stub at the existing DRAM base.
 - Instantiate 4 x `cpu_arm_cortexA710`.
@@ -177,7 +177,7 @@ The Buildroot QBox platform config must:
 | Gate | Command or proof | Pass criteria |
 | --- | --- | --- |
 | Baseline | `bash scripts/check_arm64_boot_lane.sh` | Existing Ubuntu AArch64 lane and Buildroot gap are confirmed. |
-| Buildroot rootfs/DTB | `ls build/buildroot-a710/images/{qbox_a710_soc.dtb,rootfs.cpio}` | Required files exist and are non-empty; no Buildroot `Image` is required. |
+| Buildroot rootfs/DTB | `ls build/buildroot-a710/images/{apollo_soc.dtb,rootfs.cpio}` | Required files exist and are non-empty; no Buildroot `Image` is required. |
 | Standalone Linux Image | `ls build/linux-a710/arch/arm64/boot/Image` | Kernel image from `sources/linux` exists and is non-empty. |
 | QBox build | `scripts/build_qbox_buildroot_platform.sh` | Build exits 0 and records `libqemu_SOURCE_DIR=/build/qbox_dev/sources/qemu`. |
 | Linux initramfs boot | `platforms-vp -l platforms/buildroot/conf_aarch64.lua` | BusyBox init or shell reached. |

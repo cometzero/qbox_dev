@@ -1,4 +1,4 @@
-# Design: QBox Buildroot ARM64 SoC Boot Lane
+# Design: Apollo SoC / apollo-qbox Buildroot Boot Lane
 
 ## Design principles
 
@@ -17,11 +17,11 @@
 |  + linux.config        | -----> |  fw/Artifacts/Image.bin       |
 +------------------------+        |                               |
                                   |  conf_aarch64.lua             |
-+------------------------+        |  fw/Artifacts/qbox_a710.dtb   |
++------------------------+        |  fw/Artifacts/apollo_soc.dtb  |
 | Buildroot external     | -----> |  fw/Artifacts/rootfs.cpio     |
 | rootfs/DTB only        |        |                               |
-|  qbox_a710_defconfig   |        |                               |
-|  qbox_a710_soc.dts     |        |                               |
+|  apollo_qbox_defconfig |        |                               |
+|  apollo_soc.dts     |        |                               |
 |  rootfs overlay        |        |                               |
 +------------------------+        +---------------+---------------+
                                                 |
@@ -45,7 +45,7 @@
 | --- | --- |
 | `sources/linux` submodule | Build the AArch64 Linux `Image` outside Buildroot. |
 | Buildroot external tree | Build rootfs/DTB artifacts and later ext4 rootfs; it must not build the kernel. |
-| QBox Buildroot platform | Consume the staged Linux + Buildroot artifacts and model the M1 hardware subset. |
+| QBox Buildroot platform | Consume the staged Linux + Buildroot artifacts and model the Apollo SoC M1 hardware subset. |
 | QBox loader | Place kernel, DTB, initramfs, and bootloader at fixed addresses. |
 | PL011 UART | Provide first boot console. |
 | GICv3/timer | Provide Linux interrupt and timer services. |
@@ -53,7 +53,7 @@
 
 ## Boot sequence
 
-1. Buildroot produces `qbox_a710_soc.dtb` and `rootfs.cpio` only.
+1. Buildroot produces `apollo_soc.dtb` and `rootfs.cpio` only.
 2. The standalone Linux script builds `Image` from `sources/linux`.
 3. A staging step copies or symlinks those artifacts into
    `sources/qbox/platforms/buildroot/fw/Artifacts/`.
@@ -79,11 +79,11 @@ sources/qbox/platforms/buildroot/conf_aarch64.lua
 
 Initial edits from the Ubuntu baseline:
 
-| Existing Ubuntu field | Buildroot M1 value |
+| Existing Ubuntu field | Apollo SoC value |
 | --- | --- |
 | `ARM_NUM_CPUS = 8` | `ARM_NUM_CPUS = 4` |
 | `cpu_arm_cortexA76` | `cpu_arm_cortexA710` |
-| `fw/Artifacts/ubuntu.dtb` | `fw/Artifacts/qbox_a710_soc.dtb` |
+| `fw/Artifacts/ubuntu.dtb` | `fw/Artifacts/apollo_soc.dtb` |
 | `fw/Artifacts/image_ext4_initrd.img` | `fw/Artifacts/rootfs.cpio` |
 | Ubuntu doc/script assumptions | Buildroot-specific staging script or target |
 
@@ -113,7 +113,7 @@ Equivalent ownership:
 
 ```text
 build/buildroot-a710/images/rootfs.cpio        # Buildroot
-build/buildroot-a710/images/qbox_a710_soc.dtb # Buildroot post-image hook
+build/buildroot-a710/images/apollo_soc.dtb # Buildroot post-image hook
 build/linux-a710/arch/arm64/boot/Image        # sources/linux submodule
 ```
 
@@ -122,8 +122,8 @@ Artifact staging should be explicit:
 ```bash
 install -D build/linux-a710/arch/arm64/boot/Image \
   sources/qbox/platforms/buildroot/fw/Artifacts/Image.bin
-install -D build/buildroot-a710/images/qbox_a710_soc.dtb \
-  sources/qbox/platforms/buildroot/fw/Artifacts/qbox_a710_soc.dtb
+install -D build/buildroot-a710/images/apollo_soc.dtb \
+  sources/qbox/platforms/buildroot/fw/Artifacts/apollo_soc.dtb
 install -D build/buildroot-a710/images/rootfs.cpio \
   sources/qbox/platforms/buildroot/fw/Artifacts/rootfs.cpio
 ```

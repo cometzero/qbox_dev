@@ -1,0 +1,10 @@
+menu "QBox ARM64 external options"
+
+config BR2_PACKAGE_APOLLO_QBOX_BOARD_MARKER
+	bool "Install Apollo QBox board marker"
+	default y
+	help
+	  Installs a small /etc/profile.d marker so boot logs identify the
+	  Buildroot image as the Apollo SoC / apollo-qbox initramfs lane.
+
+endmenu

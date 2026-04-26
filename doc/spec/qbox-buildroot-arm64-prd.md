@@ -1,11 +1,12 @@
-# PRD: QBox Buildroot ARM64 SoC Linux Boot
+# PRD: Apollo SoC / apollo-qbox Buildroot Linux Boot
 
 ## Summary
 
 Create a reproducible QBox platform lane that boots a minimal Buildroot Linux
-userspace on an ARM64 Cortex-A710 application cluster. This is the first step
-toward a heterogeneous SoC virtual platform that later adds Cortex-R52,
-Cortex-M55, Zephyr RTOS, shared SRAM, and SystemC device models.
+userspace on the Apollo SoC ARM64 Cortex-A710 application cluster through the
+apollo-qbox board. This is the first step toward a heterogeneous SoC virtual
+platform that later adds Cortex-R52, Cortex-M55, Zephyr RTOS, shared SRAM, and
+SystemC device models.
 
 ## Problem
 
@@ -152,7 +153,7 @@ Success criteria:
 | --- | --- |
 | Buildroot source location | Use a workspace-managed Buildroot tree plus `BR2_EXTERNAL`. |
 | Kernel version policy | Use latest mainline at implementation time as a separate Linux submodule, and record the exact tag or commit in the report. |
-| DTB ownership | Generate or stage the M1 DTB in the Buildroot board directory, then copy/symlink it to QBox artifacts. |
+| DTB ownership | Generate or stage the Apollo SoC M1 DTB in the Buildroot board directory, then copy/symlink it to QBox artifacts. |
 | Kernel build ownership | Build Linux outside Buildroot from `sources/linux`; Buildroot remains rootfs-only. |
 | Initramfs vs ext4 first | Initramfs first, ext4 later. |
 | R52/M55 modeling | Defer to separate milestones and consider isolated QEMU instances if needed. |

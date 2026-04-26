@@ -1,20 +1,20 @@
-# QBox Buildroot A710 SoC 하드웨어 아키텍처
+# Apollo SoC / apollo-qbox 하드웨어 아키텍처
 
 > 기준일: 2026-04-25
-> 기준 구현: `sources/qbox/platforms/buildroot/conf_aarch64.lua` + `buildroot/external/qbox_arm64/board/qbox/a710_soc/qbox_a710_soc.dts`
+> 기준 구현: `sources/qbox/platforms/buildroot/conf_aarch64.lua` + `buildroot/external/apollo_qbox/board/apollo/apollo-qbox/apollo_soc.dts`
 
 ## 요약
 
 현재 checkout에서 QBox가 플랫폼 구성을 자동으로 Graphviz/DOT/그림 파일로 export하는 사용자용 기능은 확인되지 않았습니다. 대신 현재 QBox Lua 플랫폼과 DTS를 기준으로 draw.io 원본 다이어그램을 작성했습니다.
 
-- draw.io 원본: [`qbox-a710-hw-architecture.drawio`](./qbox-a710-hw-architecture.drawio)
-- 문서용 SVG export: [`qbox-a710-hw-architecture.svg`](./qbox-a710-hw-architecture.svg)
+- draw.io 원본: [`apollo-qbox-hw-architecture.drawio`](./apollo-qbox-hw-architecture.drawio)
+- 문서용 SVG export: [`apollo-qbox-hw-architecture.svg`](./apollo-qbox-hw-architecture.svg)
 - 1차 부팅 대상: 4 x Cortex-A710, GICv3, PL011 UART0, 4 GiB DRAM, initramfs 기반 Buildroot Linux
 - 이후 확장 대상: 2 x Cortex-R52, 1 x Cortex-M55, UART1/2/3, 명시적 SRAM/SystemC TLM device model
 
 ## 하드웨어 구성 그림
 
-![QBox Buildroot A710 SoC hardware architecture](./qbox-a710-hw-architecture.svg)
+![Apollo SoC / apollo-qbox hardware architecture](./apollo-qbox-hw-architecture.svg)
 
 > 참고: 위 SVG는 draw.io 원본에서 export한 문서용 그림입니다. 아래 Mermaid는 Markdown에서 빠르게 보기 위한 요약 그림이고, 편집 가능한 원본 그림은 draw.io 파일을 사용하세요.
 
@@ -62,10 +62,10 @@ flowchart LR
 | 항목 | 파일 |
 | --- | --- |
 | QBox 플랫폼 구성 | `sources/qbox/platforms/buildroot/conf_aarch64.lua` |
-| Linux device tree | `buildroot/external/qbox_arm64/board/qbox/a710_soc/qbox_a710_soc.dts` |
-| 편집 가능한 하드웨어 그림 | `doc/hardware/qbox-a710-hw-architecture.drawio` |
+| Linux device tree | `buildroot/external/apollo_qbox/board/apollo/apollo-qbox/apollo_soc.dts` |
+| 편집 가능한 하드웨어 그림 | `doc/hardware/apollo-qbox-hw-architecture.drawio` |
 | 커널 artifact load path | `sources/qbox/platforms/buildroot/fw/Artifacts/Image.bin` |
-| DTB artifact load path | `sources/qbox/platforms/buildroot/fw/Artifacts/qbox_a710_soc.dtb` |
+| DTB artifact load path | `sources/qbox/platforms/buildroot/fw/Artifacts/apollo_soc.dtb` |
 | initramfs artifact load path | `sources/qbox/platforms/buildroot/fw/Artifacts/rootfs.cpio` |
 
 ## 현재 모델링 범위
@@ -122,7 +122,7 @@ flowchart LR
 | DRAM | `0x80000000` | `0x17FFFFFFF` | 4 GiB | QBox `ram_0`, DTS `memory@80000000` | Linux main memory |
 | Bootloader data | `0x80000000` | fixed load address | - | QBox `loader` | `_bootloader_aarch64` |
 | Linux Image | `0x81200000` | fixed load address | artifact-dependent | QBox `loader` | `Image.bin` |
-| Device tree blob | `0x87600000` | fixed load address | artifact-dependent | QBox `loader` | `qbox_a710_soc.dtb` |
+| Device tree blob | `0x87600000` | fixed load address | artifact-dependent | QBox `loader` | `apollo_soc.dtb` |
 | Initramfs rootfs | `0x8A800000` | generated in DTB | artifact-dependent | QBox `loader`, DTS `linux,initrd-*` | `rootfs.cpio`; end address는 rootfs 크기로 post-image 단계에서 생성 |
 | PCIe high MMIO | `0x400000000` | `0x5FFFFFFFF` | 8 GiB | QBox `qemu_gpex.mmio_iface_high` | 64-bit PCIe MMIO window |
 

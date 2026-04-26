@@ -17,21 +17,25 @@ require_artifact() {
 }
 
 require_artifact "${linux_image}"
-require_artifact "${buildroot_images}/qbox_a710_soc.dtb"
+require_artifact "${buildroot_images}/apollo_soc.dtb"
 require_artifact "${buildroot_images}/rootfs.cpio"
 
+rm -f \
+  "${artifacts_dir}/qbox_a710_soc.dtb" \
+  "${artifacts_dir}/qbox-a710-staged-artifacts.json"
+
 install -D -m 0644 "${linux_image}" "${artifacts_dir}/Image.bin"
-install -D -m 0644 "${buildroot_images}/qbox_a710_soc.dtb" "${artifacts_dir}/qbox_a710_soc.dtb"
+install -D -m 0644 "${buildroot_images}/apollo_soc.dtb" "${artifacts_dir}/apollo_soc.dtb"
 install -D -m 0644 "${buildroot_images}/rootfs.cpio" "${artifacts_dir}/rootfs.cpio"
 
-manifest="${artifacts_dir}/qbox-a710-staged-artifacts.json"
+manifest="${artifacts_dir}/apollo-qbox-staged-artifacts.json"
 cat > "${manifest}" <<JSON
 {
   "linux_image_source": "${linux_image}",
   "buildroot_images_dir": "${buildroot_images}",
   "artifacts_dir": "${artifacts_dir}",
   "Image.bin": $(stat -c '%s' "${artifacts_dir}/Image.bin"),
-  "qbox_a710_soc.dtb": $(stat -c '%s' "${artifacts_dir}/qbox_a710_soc.dtb"),
+  "apollo_soc.dtb": $(stat -c '%s' "${artifacts_dir}/apollo_soc.dtb"),
   "rootfs.cpio": $(stat -c '%s' "${artifacts_dir}/rootfs.cpio")
 }
 JSON

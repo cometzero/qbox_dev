@@ -4,8 +4,8 @@
 	#address-cells = <0x02>;
 	#size-cells = <0x02>;
 	interrupt-parent = <0x8001>;
-	model = "QBox Cortex-A710 Buildroot SoC";
-	compatible = "qbox,a710-soc", "linux,dummy-virt";
+	model = "Apollo SoC on apollo-qbox";
+	compatible = "apollo,apollo-soc", "apollo,apollo-qbox", "linux,dummy-virt";
 
 	chosen {
 		bootargs = "console=ttyAMA0 earlycon=pl011,0x10000000 rdinit=/sbin/init loglevel=8";

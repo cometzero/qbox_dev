@@ -1,4 +1,4 @@
-# QBox Buildroot ARM64 SoC Boot Plan
+# Apollo SoC / apollo-qbox Buildroot ARM64 Boot Plan
 
 Date: 2026-04-25
 Workspace: `/build/qbox_dev`
@@ -82,23 +82,23 @@ Recommended workspace layout:
 
 ```text
 buildroot/
-  external/qbox_arm64/
+  external/apollo_qbox/
     Config.in
     external.mk
-    board/qbox/a710_soc/
+    board/apollo/apollo-qbox/
       linux.config
       rootfs_overlay/
       post-build.sh
       post-image.sh
       genimage.cfg
-      qbox_a710_soc.dts
+      apollo_soc.dts
       readme.txt
-    configs/qbox_a710_soc_defconfig
+    configs/apollo_qbox_defconfig
 build/
   buildroot-a710/
     images/
       Image
-      qbox_a710_soc.dtb
+      apollo_soc.dtb
       rootfs.cpio
       rootfs.ext4
 ```
@@ -116,7 +116,7 @@ Expected M1 output contract for QBox:
 
 ```text
 sources/qbox/platforms/buildroot/fw/Artifacts/Image.bin        # or symlink/copy from Buildroot Image
-sources/qbox/platforms/buildroot/fw/Artifacts/qbox_a710.dtb
+sources/qbox/platforms/buildroot/fw/Artifacts/apollo_soc.dtb
 sources/qbox/platforms/buildroot/fw/Artifacts/rootfs.cpio      # M1 initramfs
 sources/qbox/platforms/buildroot/conf_aarch64.lua
 ```
@@ -134,7 +134,7 @@ sources/qbox/platforms/buildroot/
   conf_aarch64.lua
   fw/
     arm64_bootloader.lua      # initially copied/reused from ubuntu fw
-    qbox_a710_soc.dts         # generated or copied from Buildroot output
+    apollo_soc.dts         # generated or copied from Buildroot output
     Artifacts/                # ignored/generated
 ```
 
@@ -143,7 +143,7 @@ Implementation steps:
 1. Copy the current AArch64 Lua platform as a starting point.
 2. Rename artifact references from Ubuntu names to Buildroot names:
    - `Image.bin` or `Image`.
-   - `qbox_a710_soc.dtb`.
+   - `apollo_soc.dtb`.
    - `rootfs.cpio` for initramfs first.
 3. Change `ARM_NUM_CPUS` from 8 to 4.
 4. Change CPU moduletype from `cpu_arm_cortexA76` to `cpu_arm_cortexA710`.
@@ -178,7 +178,7 @@ Add `timeout`/log capture only after the command reaches a stable console or pan
 
 ## 5. Device Tree and Kernel Boot Contract
 
-M1 DTB must describe only what Linux needs to boot:
+The Apollo SoC M1 DTB must describe only what Linux needs to boot:
 
 - 4 Cortex-A710 CPUs with correct `enable-method = "psci"`.
 - DRAM region at `0x80000000`, size 4 GiB.
@@ -218,11 +218,11 @@ Expected commands after Buildroot scaffold exists:
 
 ```bash
 make -C buildroot O=/build/qbox_dev/build/buildroot-a710 \
-  BR2_EXTERNAL=/build/qbox_dev/buildroot/external/qbox_arm64 \
-  qbox_a710_soc_defconfig
+  BR2_EXTERNAL=/build/qbox_dev/buildroot/external/apollo_qbox \
+  apollo_qbox_defconfig
 make -C buildroot O=/build/qbox_dev/build/buildroot-a710 -j"$(nproc)"
 ls -l build/buildroot-a710/images/Image \
-      build/buildroot-a710/images/qbox_a710_soc.dtb \
+      build/buildroot-a710/images/apollo_soc.dtb \
       build/buildroot-a710/images/rootfs.cpio
 ```
 
@@ -240,7 +240,7 @@ cmake --build --preset gcc --parallel
 cd /build/qbox_dev/sources/qbox
 timeout --signal=SIGQUIT 120s \
   ./build/platforms/platforms-vp -l platforms/buildroot/conf_aarch64.lua \
-  2>&1 | tee /build/qbox_dev/build/qbox-a710-buildroot-boot.log
+  2>&1 | tee /build/qbox_dev/build/apollo-qbox-buildroot-boot.log
 ```
 
 Pass criteria:
@@ -303,8 +303,8 @@ Do not block Linux M1 on R52/M55. Add them in later milestones:
 ## 9. Recommended Execution Order
 
 1. Commit/keep this plan and baseline check script.
-2. Add Buildroot external tree and `qbox_a710_soc_defconfig`.
-3. Generate `Image`, `qbox_a710_soc.dtb`, and `rootfs.cpio`.
+2. Add Buildroot external tree and `apollo_qbox_defconfig`.
+3. Generate `Image`, `apollo_soc.dtb`, and `rootfs.cpio`.
 4. Add `sources/qbox/platforms/buildroot/conf_aarch64.lua` by cloning the Ubuntu AArch64 config.
 5. Change CPU count/model to 4 x Cortex-A710.
 6. Boot initramfs to BusyBox shell.

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -lt 2 ]]; then
-  echo "usage: ${0##*/} <images-dir> <qbox_a710_soc.dts>" >&2
+  echo "usage: ${0##*/} <images-dir> <apollo_soc.dts>" >&2
   echo "Buildroot invokes this as: post-image.sh \\"\${BINARIES_DIR}\\" <dts>" >&2
   exit 2
 fi
@@ -10,8 +10,13 @@ fi
 images_dir=$1
 dts_template=$2
 rootfs_cpio="${images_dir}/rootfs.cpio"
-dtb_out="${images_dir}/qbox_a710_soc.dtb"
-manifest_out="${images_dir}/qbox-a710-artifacts.json"
+dtb_out="${images_dir}/apollo_soc.dtb"
+manifest_out="${images_dir}/apollo-qbox-artifacts.json"
+
+rm -f \
+  "${images_dir}/qbox_a710_soc.dtb" \
+  "${images_dir}/qbox_a710_soc.generated.dts" \
+  "${images_dir}/qbox-a710-artifacts.json"
 
 if [[ ! -s "${rootfs_cpio}" ]]; then
   echo "missing rootfs cpio: ${rootfs_cpio}" >&2
@@ -28,7 +33,7 @@ initrd_end=$((initrd_start + rootfs_size))
 initrd_start_hex=$(printf '0x%08x' "${initrd_start}")
 initrd_end_hex=$(printf '0x%08x' "${initrd_end}")
 
-generated_dts="${images_dir}/qbox_a710_soc.generated.dts"
+generated_dts="${images_dir}/apollo_soc.generated.dts"
 sed \
   -e "s/__INITRD_START__/${initrd_start_hex}/g" \
   -e "s/__INITRD_END__/${initrd_end_hex}/g" \
@@ -47,7 +52,9 @@ fi
 
 cat > "${manifest_out}" <<JSON
 {
-  "platform": "qbox_a710_soc",
+  "machine": "apollo_soc",
+  "board": "apollo-qbox",
+  "platform": "apollo_soc",
   "dtb": "${dtb_out}",
   "rootfs_cpio": "${rootfs_cpio}",
   "rootfs_cpio_size": ${rootfs_size},
