@@ -60,6 +60,10 @@ if errors:
     print("commit-msg hook: rejected commit message", file=sys.stderr)
     for error in errors:
         print(f"  - {error}", file=sys.stderr)
+    print(
+        "\nCodex agents: use the `commit-atomic` skill for commits.",
+        file=sys.stderr,
+    )
     print("\nExpected format:", file=sys.stderr)
     print("  fix: concise summary", file=sys.stderr)
     print("", file=sys.stderr)

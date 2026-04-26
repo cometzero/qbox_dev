@@ -15,6 +15,8 @@ if [[ ! -x "${hook_src}" ]]; then
   exit 1
 fi
 
+echo "Codex agents should create commits through the commit-atomic skill."
+
 for repo in "${repos[@]}"; do
   repo_path="${repo_root}/${repo}"
   if [[ ! -d "${repo_path}" ]]; then
