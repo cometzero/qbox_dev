@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 qbox_root=${QBOX_ROOT:-"${repo_root}/sources/qbox"}
+libqemu_src=${QBOX_LIBQEMU_SRC:-"${repo_root}/sources/qemu"}
 ccache_bin=${QBOX_CCACHE:-$(command -v ccache || true)}
 use_ccache=${QBOX_USE_CCACHE:-1}
 ccache_dir=${QBOX_QBOX_CCACHE_DIR:-"${repo_root}/build/ccache/qbox"}
@@ -13,7 +14,16 @@ if [[ ! -f "${qbox_root}/CMakePresets.json" ]]; then
   exit 1
 fi
 
-cmake_args=(-DLIBQEMU_TARGETS=aarch64)
+if [[ ! -f "${libqemu_src}/qemu.cmake" ]]; then
+  echo "libqemu/QEMU source missing: ${libqemu_src}" >&2
+  echo "Run: git submodule update --init sources/qemu" >&2
+  exit 1
+fi
+
+cmake_args=(
+  -DLIBQEMU_TARGETS=aarch64
+  -DCPM_libqemu_SOURCE="${libqemu_src}"
+)
 if [[ "${use_ccache}" != "0" ]]; then
   if [[ -z "${ccache_bin}" ]]; then
     echo "ccache requested but not found. Install ccache or set QBOX_USE_CCACHE=0." >&2
@@ -21,20 +31,23 @@ if [[ "${use_ccache}" != "0" ]]; then
   fi
   mkdir -p "${ccache_dir}"
   export CCACHE_DIR="${ccache_dir}"
-  export CCACHE_BASEDIR="${qbox_root}"
+  export CCACHE_BASEDIR="${repo_root}"
   cmake_args+=(
     -DCMAKE_C_COMPILER_LAUNCHER="${ccache_bin}"
     -DCMAKE_CXX_COMPILER_LAUNCHER="${ccache_bin}"
   )
 fi
 
+echo "QBox libqemu source: ${libqemu_src}"
 (cd "${qbox_root}" && cmake --preset gcc "${cmake_args[@]}")
 
 if [[ "${1:-}" == "--config-only" ]]; then
   echo "Configured QBox buildroot platform output: ${qbox_root}/build"
+  echo "QBox libqemu source: ${libqemu_src}"
   if [[ "${use_ccache}" != "0" ]]; then
     echo "QBox ccache launcher: ${ccache_bin}"
     echo "QBox ccache dir: ${CCACHE_DIR}"
+    echo "QBox ccache basedir: ${CCACHE_BASEDIR}"
   fi
   exit 0
 fi
@@ -59,4 +72,5 @@ echo "QBox Buildroot platform runtime built in ${qbox_root}/build"
 if [[ "${use_ccache}" != "0" ]]; then
   echo "QBox ccache launcher: ${ccache_bin}"
   echo "QBox ccache dir: ${CCACHE_DIR}"
+  echo "QBox ccache basedir: ${CCACHE_BASEDIR}"
 fi

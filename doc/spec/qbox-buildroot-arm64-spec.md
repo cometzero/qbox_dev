@@ -24,6 +24,10 @@ Buildroot must not enable `BR2_LINUX_KERNEL` for M1. Linux is built from the
 separate `sources/linux` git submodule and then staged with the Buildroot
 rootfs/DTB artifacts into the QBox platform artifact directory.
 
+QBox must build libqemu from the separate `sources/qemu` git submodule through
+the local CPM source override, rather than treating libqemu only as a build-time
+download under `sources/qbox/build/_deps`.
+
 ### FR-2: Separate QBox platform lane
 
 The Buildroot platform must not overwrite Ubuntu artifacts. It must use a
@@ -126,6 +130,7 @@ Recommended layout:
 sources/
   buildroot/        # git submodule, Buildroot source
   linux/            # git submodule, upstream Linux source
+  qemu/             # git submodule, QEMU/libqemu source consumed by QBox
 buildroot/external/qbox_arm64/
   Config.in
   external.mk
@@ -174,7 +179,7 @@ The Buildroot QBox platform config must:
 | Baseline | `bash scripts/check_arm64_boot_lane.sh` | Existing Ubuntu AArch64 lane and Buildroot gap are confirmed. |
 | Buildroot rootfs/DTB | `ls build/buildroot-a710/images/{qbox_a710_soc.dtb,rootfs.cpio}` | Required files exist and are non-empty; no Buildroot `Image` is required. |
 | Standalone Linux Image | `ls build/linux-a710/arch/arm64/boot/Image` | Kernel image from `sources/linux` exists and is non-empty. |
-| QBox build | `cmake --preset gcc -DLIBQEMU_TARGETS=aarch64 && cmake --build --preset gcc --parallel` | Build exits 0. |
+| QBox build | `scripts/build_qbox_buildroot_platform.sh` | Build exits 0 and records `libqemu_SOURCE_DIR=/build/qbox_dev/sources/qemu`. |
 | Linux initramfs boot | `platforms-vp -l platforms/buildroot/conf_aarch64.lua` | BusyBox init or shell reached. |
 | Ext4 boot | virtio rootfs boot log | `/dev/vda` rootfs mounts and init completes. |
 

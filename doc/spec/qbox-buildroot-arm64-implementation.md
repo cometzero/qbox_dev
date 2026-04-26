@@ -6,6 +6,7 @@
 - QBox submodule present at `sources/qbox/`.
 - Buildroot source submodule present at `sources/buildroot/`.
 - Linux source submodule present at `sources/linux/`.
+- QEMU/libqemu source submodule present at `sources/qemu/`.
 - QBox branch checked out as intended for development.
 - No uncommitted changes before implementation starts.
 - Baseline check passes:
@@ -162,18 +163,20 @@ ls -l sources/qbox/platforms/buildroot/fw/Artifacts/Image.bin \
 
 ## Phase 4: QBox build
 
-Use the existing preset or an explicit build directory:
+Use the workspace wrapper so QBox gets ccache and builds libqemu from the local
+QEMU source submodule instead of downloading it into `_deps`:
 
 ```bash
-cd /build/qbox_dev/sources/qbox
-cmake --preset gcc -DLIBQEMU_TARGETS=aarch64
-cmake --build --preset gcc --parallel
+scripts/build_qbox_buildroot_platform.sh --config-only
+scripts/build_qbox_buildroot_platform.sh
 ```
 
 Pass criteria:
 
 - `sources/qbox/build/platforms-vp` exists.
 - AArch64 QEMU target libraries are present in the build/install output.
+- `sources/qbox/build/CMakeCache.txt` records
+  `libqemu_SOURCE_DIR=/build/qbox_dev/sources/qemu`.
 
 ## Phase 5: first boot smoke
 
@@ -235,6 +238,7 @@ The report must include:
 - QBox commit.
 - Buildroot version or commit.
 - Linux source submodule version or commit.
+- QEMU/libqemu source submodule version or commit.
 - Exact commands run.
 - Artifact paths and sizes.
 - Boot log path.
@@ -248,6 +252,7 @@ The report must include:
 | `buildroot/external/qbox_arm64/` | Buildroot rootfs/DTB lane. |
 | `sources/buildroot/` | Buildroot upstream source submodule. |
 | `sources/linux/` | Linux upstream source submodule. |
+| `sources/qemu/` | QEMU/libqemu upstream source submodule consumed by QBox. |
 | `sources/qbox/platforms/buildroot/` | QBox platform lane. |
 | `scripts/` | Workspace helper scripts only. |
 | `doc/` | Plans, specs, and verification reports. |
@@ -271,6 +276,7 @@ If the Buildroot lane breaks the workspace:
 - [ ] Standalone Linux submodule build generates `Image`.
 - [ ] Linux + Buildroot artifacts are staged for QBox.
 - [ ] QBox Buildroot platform config exists.
+- [ ] QBox build consumes libqemu from `sources/qemu`.
 - [ ] CPU count is 4.
 - [ ] CPU model is `cpu_arm_cortexA710`.
 - [ ] QBox builds with `LIBQEMU_TARGETS=aarch64`.

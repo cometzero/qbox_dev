@@ -43,11 +43,13 @@ require_submodule() {
 require_submodule qbox "QBox submodule"
 require_submodule sources/buildroot "Buildroot source submodule"
 require_submodule sources/linux "Linux source submodule"
+require_submodule sources/qemu "libqemu/QEMU source submodule"
 
 require_grep 'branch = 2026\.02\.1' "${repo_root}/.gitmodules" "Buildroot 2026.02.1 pin"
 require_grep 'branch = master' "${repo_root}/.gitmodules" "Linux mainline master pin"
 require_grep 'submodule\.sources/buildroot\.shallow false' <(git config --file "${repo_root}/.gitmodules" --get-regexp 'submodule\.sources/buildroot\.shallow') "Buildroot full-history submodule setting"
 require_grep 'submodule\.sources/linux\.shallow false' <(git config --file "${repo_root}/.gitmodules" --get-regexp 'submodule\.sources/linux\.shallow') "Linux full-history submodule setting"
+require_grep 'submodule\.sources/qemu\.shallow false' <(git config --file "${repo_root}/.gitmodules" --get-regexp 'submodule\.sources/qemu\.shallow') "QEMU full-history submodule setting"
 
 external="${repo_root}/buildroot/external/qbox_arm64"
 board="${external}/board/qbox/a710_soc"
@@ -96,6 +98,8 @@ require_grep 'cpu_arm_cortexA710' "${platform}" "QBox Cortex-A710 module"
 require_grep 'qbox_a710_soc\.dtb' "${platform}" "Buildroot DTB artifact"
 require_grep 'rootfs\.cpio' "${platform}" "Buildroot initramfs artifact"
 require_grep 'math\.floor\(i / 2\) << 8' "${platform}" "2x2 cluster mp_affinity mapping"
+require_grep 'libqemu_src=\$\{QBOX_LIBQEMU_SRC:-"\$\{repo_root\}/sources/qemu"\}' "${repo_root}/scripts/build_qbox_buildroot_platform.sh" "QBox local libqemu source override"
+require_grep 'CPM_libqemu_SOURCE="\$\{libqemu_src\}"' "${repo_root}/scripts/build_qbox_buildroot_platform.sh" "QBox CPM libqemu source override"
 require_grep 'CMAKE_C_COMPILER_LAUNCHER="\$\{ccache_bin\}"' "${repo_root}/scripts/build_qbox_buildroot_platform.sh" "QBox C ccache launcher"
 require_grep 'CMAKE_CXX_COMPILER_LAUNCHER="\$\{ccache_bin\}"' "${repo_root}/scripts/build_qbox_buildroot_platform.sh" "QBox CXX ccache launcher"
 
@@ -104,4 +108,4 @@ if git -C "${qbox_root}" ls-files --error-unmatch platforms/buildroot/fw/Artifac
 fi
 pass "generated boot artifacts are not tracked in qbox"
 
-printf '\nLane conclusion: Buildroot now owns rootfs/DTB generation only; Linux Image is built from the separate sources/linux submodule.\n'
+printf '\nLane conclusion: Buildroot owns rootfs/DTB generation only; Linux Image comes from sources/linux, and libqemu comes from sources/qemu.\n'

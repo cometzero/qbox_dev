@@ -8,15 +8,17 @@ vendoring generated copies.
 | `sources/qbox/` | <https://github.com/quic/qbox.git> | local branch `feature/aarch64_buildroot` |
 | `sources/buildroot/` | <https://gitlab.com/buildroot.org/buildroot.git> | `2026.02.1` |
 | `sources/linux/` | <https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git> | mainline `master` (`27d128c1cff64c3b8012cc56dd5a1391bb4f1821`) |
+| `sources/qemu/` | <https://github.com/quic/qemu.git> | `libqemu-v10.1-v0.13` (`99d1f1559caa661a61ceb07803c2886f429b7be7`) |
 
 Initialize with:
 
 ```bash
-git submodule update --init --recursive sources/qbox sources/buildroot sources/linux
+git submodule update --init --recursive sources/qbox
+git submodule update --init sources/buildroot sources/linux sources/qemu
 ```
 
-The Linux and Buildroot submodules are configured for full history, not shallow
-clones. If an older shallow checkout already exists, refresh it with:
+The Linux, Buildroot, and QEMU submodules are configured for full history, not
+shallow clones. If an older shallow checkout already exists, refresh it with:
 
 ```bash
 git -C sources/linux config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
@@ -25,6 +27,8 @@ git -C sources/linux fetch origin +refs/heads/master:refs/remotes/origin/master
 git -C sources/linux checkout -B mainline-latest origin/master
 git -C sources/buildroot config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
 git -C sources/buildroot fetch --unshallow --tags origin
+git -C sources/qemu config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+git -C sources/qemu fetch --unshallow --tags origin
 ```
 
 Build ownership:
@@ -33,6 +37,10 @@ Build ownership:
   intentionally excludes `BR2_LINUX_KERNEL`.
 - `sources/linux/` is built by `scripts/build_qbox_linux_arm64.sh` to produce
   the standalone `Image` consumed by QBox.
+- `sources/qemu/` is the libqemu/QEMU checkout consumed by
+  `scripts/build_qbox_buildroot_platform.sh` through CPM's
+  `CPM_libqemu_SOURCE` override, so QEMU/libqemu patches can be made in a
+  normal submodule workspace and rebuilt by QBox.
 - Buildroot, Linux, and QBox platform builds use ccache by default:
   - Buildroot cache: `build/ccache/buildroot`
   - Linux cache: `build/ccache/linux`

@@ -11,3 +11,7 @@
 	url = https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
 	branch = master
 	shallow = false
+[submodule "sources/qemu"]
+	path = sources/qemu
+	url = https://github.com/quic/qemu.git
+	shallow = false
