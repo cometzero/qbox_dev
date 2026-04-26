@@ -26,13 +26,13 @@ require_executable() {
 
 require_grep() {
   local pattern=$1 path=$2 label=$3
-  grep -Eq "${pattern}" "${path}" || fail "${label} not found in ${path}"
+  grep -Eq -- "${pattern}" "${path}" || fail "${label} not found in ${path}"
   pass "${label} present"
 }
 
 forbid_grep() {
   local pattern=$1 path=$2 label=$3
-  if grep -Eq "${pattern}" "${path}"; then
+  if grep -Eq -- "${pattern}" "${path}"; then
     fail "${label} unexpectedly present in ${path}"
   fi
   pass "${label} absent"
@@ -77,6 +77,7 @@ require_executable "${board}/post-image.sh" "post-image hook"
 require_executable "${repo_root}/scripts/build_qbox_buildroot_arm64.sh" "Buildroot rootfs build script"
 require_executable "${repo_root}/scripts/build_qbox_linux_arm64.sh" "standalone Linux build script"
 require_executable "${repo_root}/scripts/stage_buildroot_artifacts.sh" "artifact staging script"
+require_executable "${repo_root}/scripts/check_qbox_hexagon_smmu_reference.sh" "QBox Hexagon SMMU reference preflight script"
 
 require_grep '^BR2_aarch64=y$' "${defconfig}" "AArch64 target"
 require_grep '^BR2_cortex_a710=y$' "${defconfig}" "Cortex-A710 target tuning"
@@ -112,7 +113,11 @@ require_grep '/dev/ttyAMA0[[:space:]]+c[[:space:]]+660' "${board}/device_table.t
 
 qbox_root="${repo_root}/sources/qbox"
 platform="${qbox_root}/platforms/buildroot/conf_aarch64.lua"
+hexagon_smmu_cmake="${qbox_root}/tests/qbox/cpu/hexagon/CMakeLists.txt"
+hexagon_smmu_readme="${qbox_root}/tests/qbox/cpu/hexagon/HEXAGON_SMMU_README.md"
 require_file "${platform}" "QBox Buildroot AArch64 platform"
+require_file "${hexagon_smmu_cmake}" "QBox Hexagon SMMU reference CMake"
+require_file "${hexagon_smmu_readme}" "QBox Hexagon SMMU reference README"
 require_file "${qbox_root}/platforms/buildroot/fw/arm64_bootloader.lua" "Buildroot ARM64 bootloader stub"
 require_file "${qbox_root}/platforms/buildroot/fw/Artifacts/.gitignore" "artifact directory gitignore"
 require_grep 'ARM_NUM_CPUS = 4' "${platform}" "4 Cortex-A710 CPUs"
@@ -145,6 +150,10 @@ require_grep 'arm_smmuv3' "${repo_root}/scripts/build_qbox_buildroot_platform.sh
 require_grep 'qemu_cpu_hexagon' "${repo_root}/scripts/build_qbox_buildroot_platform.sh" "QBox Hexagon build target"
 require_grep 'arm_smmuv3\.so' "${repo_root}/scripts/run_qbox_buildroot_boot.sh" "QBox SMMUv3 runtime module check"
 require_grep 'qemu_cpu_hexagon\.so' "${repo_root}/scripts/run_qbox_buildroot_boot.sh" "QBox Hexagon runtime module check"
+require_grep 'HEXAGON_SMMU_MCPU "hexagonv68"' "${hexagon_smmu_cmake}" "QBox Hexagon SMMU v68 firmware target"
+require_grep '-mcpu=\$\{HEXAGON_SMMU_MCPU\}' "${hexagon_smmu_cmake}" "QBox Hexagon SMMU CMake mcpu usage"
+require_grep '-mcpu="\$\{mcpu\}"' "${repo_root}/scripts/check_qbox_hexagon_smmu_reference.sh" "QBox Hexagon SMMU preflight mcpu usage"
+require_grep 'Hexagon v68 or later' "${hexagon_smmu_readme}" "QBox Hexagon SMMU v68 README note"
 
 if git -C "${qbox_root}" ls-files --error-unmatch platforms/buildroot/fw/Artifacts/Image.bin >/dev/null 2>&1; then
   fail "generated Image.bin must not be tracked"
