@@ -132,8 +132,10 @@
 			     <0x00 0x235 0x04>;
 		interrupt-names = "doorbell", "error";
 		iommus = <&smmu 0x1>;
-		apollo,dma-path = "direct-tlm";
+		apollo,dma-path = "smmu-translated";
 		apollo,smmu-stream-id = <0x1>;
+		apollo,dma-iova-base = <0x00 0x10000000>;
+		apollo,dma-window-size = <0x00 0x00600000>;
 		dma-coherent;
 		memory-region = <&hexagon_sram>, <&shared_sram>;
 		memory-region-names = "firmware", "dma-test";

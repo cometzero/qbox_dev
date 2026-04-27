@@ -110,6 +110,7 @@ required_modules=(
   cpu_arm_cortexA710.so
   arm_smmuv3.so
   apollo_hexagon_dma.so
+  apollo_smmu_tbu.so
   qemu_cpu_hexagon.so
   hexagon_globalreg.so
   hexagon_l2vic.so

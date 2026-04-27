@@ -63,6 +63,7 @@ targets=(
   cpu_arm_cortexA710
   arm_smmuv3
   apollo_hexagon_dma
+  apollo_smmu_tbu
   qemu_cpu_hexagon
   hexagon_globalreg
   hexagon_l2vic

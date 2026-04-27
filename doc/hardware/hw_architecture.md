@@ -10,8 +10,11 @@
 - draw.io 원본: [`apollo-qbox-hw-architecture.drawio`](./apollo-qbox-hw-architecture.drawio)
 - 문서용 SVG export: [`apollo-qbox-hw-architecture.svg`](./apollo-qbox-hw-architecture.svg)
 - 1차 부팅 대상: 4 x Cortex-A710, GICv3, PL011 UART0, 4 GiB DRAM, initramfs 기반 Buildroot Linux
-- 현재 확장 대상: Linux-visible ARM SMMUv3, powered-on Hexagon firmware smoke, SystemC `apollo_hexagon_dma`, Apollo Hexagon probe driver
-- 이후 확장 대상: 2 x Cortex-R52, 1 x Cortex-M55, UART1/2/3, production reset/power ABI, SMMUv3-translated SystemC DMA devices
+- 현재 확장 대상: Linux-visible ARM SMMUv3, powered-on Hexagon firmware smoke,
+  SystemC `apollo_hexagon_dma` + `apollo_smmu_tbu` translated DMA path,
+  Apollo Hexagon probe driver
+- 이후 확장 대상: 2 x Cortex-R52, 1 x Cortex-M55, UART1/2/3,
+  production reset/power ABI, native Hexagon DMA descriptor execution
 
 ## 하드웨어 구성 그림
 
@@ -28,6 +31,7 @@ flowchart LR
     UART0[PL011 UART0 console\n0x10000000 / 4 KiB\nSPI 379]
     NET[virtio-mmio-net\n0x1C120000 / 64 KiB\nSPI 18]
     SMMU[ARM SMMUv3\n0x1C200000 / 128 KiB\nSPI 560-563]
+    TBU[apollo_smmu_tbu\nStreamID 0x1\nIOVA 0x10000000 -> PA 0x00A00000]
     HEX[Hexagon sidecar\nqemu_cpu_hexagon powered on\nboot alias 0x0 -> 0x00C00000]
     HDMA[apollo_hexagon_dma\nMMIO 0x1C220000\nfirmware-triggered TLM DMA]
     HSRAM[Hexagon SRAM\n0x00C00000 / 4 MiB\nfirmware + source buffer]
@@ -49,12 +53,14 @@ flowchart LR
     SMMU --> GIC
     ROUTER --> HEX
     ROUTER --> HDMA
+    ROUTER --> TBU
     ROUTER --> HSRAM
     ROUTER --> SSRAM
     HEX --> HSRAM
     HEX --> HDMA
-    HDMA --> HSRAM
-    HDMA --> SSRAM
+    HDMA --> TBU
+    TBU --> HSRAM
+    TBU --> SSRAM
     HEX -. Linux-visible DMA master in DTS .-> SMMU
     ROUTER --> GPEX
     GPEX --> GIC
@@ -108,13 +114,13 @@ flowchart LR
 | --- | --- | --- |
 | ARM SMMUv3 | QBox `arm_smmuv3` + DTS `arm,smmu-v3`로 Linux probe 완료 | SystemC/PCIe 외 DMA master stream wiring 확대 |
 | Hexagon IP | `qemu_cpu_hexagon`이 firmware smoke를 실행하고 `apollo_hexagon_dma` MMIO를 program | reset/power control, mailbox/doorbell, production firmware ABI 설계 |
-| Hexagon firmware DMA | `apollo_hexagon_dma.bin`이 Hexagon SRAM source pattern을 shared SRAM으로 32-byte copy | native Hexagon DMA/SMMUv3 translated traffic으로 확장 |
+| Hexagon firmware DMA | `apollo_hexagon_dma.bin`이 IOVA `0x10201000` -> `0x10000000` copy를 요청하고 `apollo_smmu_tbu`가 PA `0x00C01000` -> `0x00A00000`으로 변환 | native Hexagon DMA descriptor 실행으로 확장 |
 | Hexagon Linux probe | built-in `apollo-hexagon-test` driver가 IOMMU group, APSS coherent DMA, firmware DMA destination pattern 확인 | production driver ABI와 userspace interface 설계 |
 | Cortex-R52 x 2 | 아직 CPU model 미연결 | Zephyr RTOS용 remote/core model 추가 |
 | Cortex-M55 x 1 | 아직 CPU model 미연결 | Zephyr RTOS용 M-profile model 추가 |
 | UART1/2/3 | 아직 미연결 | R52용 2개, M55용 1개 PL011 또는 대체 UART 추가 |
 | SRAM 8 MiB | shared/Hexagon SRAM은 QBox `gs_memory`; 나머지는 DTS `reserved-memory` | R52/M55 SRAM도 명시 memory/device model로 승격 |
-| SystemC 기반 device | `apollo_hexagon_dma`가 첫 firmware-programmed TLM device로 연결됨 | IRQ line, SMMUv3 path, richer register ABI 추가 |
+| SystemC 기반 device | `apollo_hexagon_dma.translated_dma -> apollo_smmu_tbu -> router`로 SMMU-translated TLM path 구성 | IRQ line, richer register ABI 추가 |
 
 ## 메모리 맵
 
@@ -129,12 +135,13 @@ flowchart LR
 | M55 SRAM reserved | `0x00900000` | `0x009FFFFF` | 1 MiB | DTS `reserved-memory` | M55용 예정 |
 | Shared SRAM | `0x00A00000` | `0x00BFFFFF` | 2 MiB | QBox `gs_memory` + DTS `reserved-memory` | Hexagon firmware DMA destination; Linux driver가 pattern 검증 |
 | Hexagon SRAM | `0x00C00000` | `0x00FFFFFF` | 4 MiB | QBox `gs_memory` + DTS `reserved-memory` | firmware load/source buffer; Hexagon local boot alias `0x00000000` |
+| Hexagon DMA IOVA window | `0x10000000` | `0x105FFFFF` | 6 MiB | QBox `apollo_smmu_tbu` + DTS `apollo,dma-iova-base/window-size` | StreamID `0x1`; IOVA `0x10000000` maps to PA `0x00A00000` |
 | PL011 UART0 | `0x10000000` | `0x10000FFF` | 4 KiB | QBox `Pl011` + DTS `serial@10000000` | Console, GIC SPI 379 |
 | GIC Distributor | `0x17A00000` | `0x17A0FFFF` | 64 KiB | DTS `intc`; QBox `dist_iface` | QBox interface window는 `0x17A00000`-`0x17A5FFFF` |
 | GIC Redistributors | `0x17A60000` | `0x17ADFFFF` | 512 KiB | DTS `intc`; QBox `redist_iface_0` | QBox interface window는 `0x17A60000`-`0x17C1FFFF` |
 | virtio-mmio-net | `0x1C120000` | `0x1C12FFFF` | 64 KiB | QBox `virtio_mmio_net` | GIC SPI 18 |
 | ARM SMMUv3 | `0x1C200000` | `0x1C21FFFF` | 128 KiB | QBox `arm_smmuv3` + DTS `iommu@1c200000` | Linux IOMMU node, SPI 560-563 |
-| Hexagon DMA/control window | `0x1C220000` | `0x1C22FFFF` | 64 KiB | QBox `apollo_hexagon_dma` + DTS `hexagon@1c220000` | firmware writes source/destination/length/start registers; Linux probe node has `iommus = <&smmu 0x1>` |
+| Hexagon DMA/control window | `0x1C220000` | `0x1C22FFFF` | 64 KiB | QBox `apollo_hexagon_dma` + DTS `hexagon@1c220000` | firmware writes source/destination IOVA/length/start registers; Linux probe node has `iommus = <&smmu 0x1>` |
 | Hexagon qtimer | `0x1C240000` | `0x1C25FFFF` | 128 KiB | QBox `qemu_hexagon_qtimer` | Routed into Hexagon L2VIC |
 | Hexagon L2VIC | `0x1C260000` | `0x1C27FFFF` | 128 KiB | QBox `hexagon_l2vic` | Routed to powered-off Hexagon IRQ inputs |
 | PCIe ECAM | `0x43B50000` | `0x53B4FFFF` | 256 MiB | QBox `qemu_gpex.ecam_iface` | PCI config space |
@@ -157,12 +164,12 @@ flowchart LR
 
 | Offset | Register | Direction | 역할 |
 | ---: | --- | --- | --- |
-| `0x00` | SRC | firmware write / debug read | DMA source physical address (`0x00C01000`) |
-| `0x04` | DST | firmware write / debug read | DMA destination physical address (`0x00A00000`) |
+| `0x00` | SRC | firmware write / debug read | DMA source IOVA (`0x10201000` -> PA `0x00C01000`) |
+| `0x04` | DST | firmware write / debug read | DMA destination IOVA (`0x10000000` -> PA `0x00A00000`) |
 | `0x08` | LEN | firmware write / debug read | transfer length; smoke test는 32 bytes |
 | `0x0C` | CTRL | firmware write | bit0 START; SystemC TLM read/write 실행 |
 | `0x10` | STATUS | firmware poll | `1`이면 DONE |
-| `0x14` | RESULT | firmware/debug read | `0x444D414F` (`DMAO`)이면 성공 |
+| `0x14` | RESULT | firmware/debug read | `0x444D414F` (`DMAO`)이면 성공; `0xBAD00001`은 잘못된 길이, `0xBAD00002`는 TLM transaction 실패 |
 | `0x18` | FW_DONE | firmware write | firmware completion magic `0x48455844` (`HEXD`) |
 
 ## Interrupt map
@@ -189,7 +196,10 @@ flowchart LR
 4. CPU0이 `rvbar = 0x80000000`에서 부팅을 시작합니다.
 5. Linux는 DTB의 `console=ttyAMA0 earlycon=pl011,0x10000000` 설정으로 UART0에 로그를 출력합니다.
 6. QBox loader는 `apollo_hexagon_dma.bin`을 Hexagon SRAM에 배치하고, Hexagon CPU는 boot alias `0x0`에서 firmware smoke를 실행합니다.
-7. Hexagon firmware는 `apollo_hexagon_dma` register를 program해 `0x00C01000`의 32-byte pattern을 shared SRAM `0x00A00000`으로 복사합니다.
+7. Hexagon firmware는 `apollo_hexagon_dma` register에 IOVA
+   `0x10201000`/`0x10000000`을 program하고 `apollo_smmu_tbu`는 이를
+   PA `0x00C01000`/`0x00A00000`으로 변환해 32-byte pattern을 shared
+   SRAM으로 복사합니다.
 8. Linux는 `iommu@1c200000`에서 SMMUv3를 probe하고 `hexagon@1c220000`을 `apollo-hexagon-test` driver에 bind합니다.
 9. Linux driver는 IOMMU group attach, APSS coherent DMA selftest, shared SRAM의 firmware DMA pattern을 확인합니다.
 10. initramfs는 DTS의 `linux,initrd-start/end`로 전달되며, Buildroot post-image 단계에서 end address가 rootfs 크기에 맞게 채워집니다.
@@ -198,7 +208,13 @@ flowchart LR
 
 - `fallback_0`는 `0x0`부터 32 GiB까지 넓게 잡힌 fallback memory입니다. 현재 1차 부팅을 단순화하기 위한 안전망이며 DRAM/MMIO와 주소 범위가 겹칠 수 있습니다. R52/M55/SystemC device를 실제로 추가할 때는 해당 주소 window를 명시적인 memory/device model로 라우팅하도록 정리해야 합니다.
 - DTS의 A710/R52/M55/shared SRAM 영역은 Linux가 일반 memory로 사용하지 않도록 `no-map`으로 예약한 상태입니다. Shared/Hexagon SRAM은 QBox `gs_memory`로도 모델링되어 firmware DMA smoke에 사용됩니다.
-- 현재 Hexagon firmware smoke는 firmware가 MMIO로 SystemC DMA engine을 시작하고 QBox TLM read/write가 shared SRAM에 pattern을 복사하는 수준입니다. native Hexagon DMA instruction, production reset/power sequencing, mailbox/doorbell ABI는 후속 작업입니다.
-- SMMUv3는 Linux가 probe 가능하고 Hexagon platform device가 IOMMU group에 attach되는 것을 확인했습니다. 다만 이번 smoke의 SystemC DMA transaction 자체는 아직 SMMUv3 translation path를 통과하지 않습니다.
+- 현재 Hexagon firmware smoke는 firmware가 MMIO로 SystemC DMA engine을
+  시작하고 QBox TLM read/write가 `apollo_smmu_tbu` translated path를
+  지나 shared SRAM에 pattern을 복사하는 수준입니다. native Hexagon DMA
+  instruction, production reset/power sequencing, mailbox/doorbell ABI는 후속
+  작업입니다.
+- Linux-visible SMMUv3 probe/IOMMU group attach와 별개로, custom Hexagon DMA
+  data-plane은 QBox functional TBU(`apollo_smmu_tbu`)가 IOVA window 변환과
+  TLM fault response를 담당합니다.
 - DTS의 GIC reg 크기와 QBox `arm_gicv3` interface window 크기는 표현 단위가 다릅니다. Linux에 노출되는 DTB reg와 QBox internal interface mapping을 구분해서 봐야 합니다.
 - 이 문서는 현재 1차 목표인 A710 Linux/Buildroot 부팅 경로 기준입니다. R52/M55/추가 UART/디바이스 모델이 들어가면 draw.io와 메모리 맵을 함께 갱신해야 합니다.
