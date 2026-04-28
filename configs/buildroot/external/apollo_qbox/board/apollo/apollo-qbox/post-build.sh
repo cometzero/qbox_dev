@@ -36,3 +36,23 @@ if grep -q '^devtmpfs[[:space:]]\+/dev[[:space:]]' "${fstab}"; then
   grep -v '^devtmpfs[[:space:]]\+/dev[[:space:]]' "${fstab}" > "${tmp_fstab}"
   mv "${tmp_fstab}" "${fstab}"
 fi
+
+iree_guest_artifacts_dir=${QBOX_IREE_GUEST_ARTIFACTS_DIR:-}
+if [[ -n "${iree_guest_artifacts_dir}" ]]; then
+  if [[ ! -d "${iree_guest_artifacts_dir}" ]]; then
+    echo "QBOX_IREE_GUEST_ARTIFACTS_DIR is not a directory: ${iree_guest_artifacts_dir}" >&2
+    exit 1
+  fi
+
+  install -d "${target_dir}/opt/qbox/iree/tiny-cnn"
+  cp -a "${iree_guest_artifacts_dir}/." "${target_dir}/opt/qbox/iree/tiny-cnn/"
+  cat > "${target_dir}/opt/qbox/iree/README" <<'MARKER'
+This image contains optional Apollo QBox IREE tiny-CNN guest artifacts.
+
+The default minimal image does not include iree-run-module yet.  Once an
+AArch64 IREE runtime package or a custom IREE C runner is added to Buildroot,
+run:
+
+  /opt/qbox/iree/tiny-cnn/run_tiny_cnn_guest.sh
+MARKER
+fi
