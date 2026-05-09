@@ -8,8 +8,10 @@ venv_dir=${QBOX_IREE_SMOKE_VENV:-"${repo_root}/build/iree-smoke-venv"}
 runtime_version=${QBOX_IREE_RUNTIME_VERSION:-3.11.0}
 wheel_dir=${QBOX_IREE_AARCH64_WHEEL_DIR:-"${repo_root}/build/iree-aarch64-wheel"}
 extract_dir=${QBOX_IREE_AARCH64_EXTRACT_DIR:-"${repo_root}/build/iree-aarch64-runtime-extract"}
+hexagon_tools_dir=${QBOX_APOLLO_HEXAGON_TOOLS_OUT:-"${repo_root}/build/apollo-hexagon-guest-tools"}
 
 "${repo_root}/scripts/run_iree_tiny_cnn_host_smoke.sh"
+"${repo_root}/scripts/build_apollo_hexagon_guest_tools.sh"
 
 if [[ ! -x "${venv_dir}/bin/python" ]]; then
   python3 -m venv "${venv_dir}"
@@ -80,6 +82,8 @@ done
 rm -rf "${stage_dir}"
 install -d "${stage_dir}/bin"
 install -m 0755 "${runtime_bin}" "${stage_dir}/bin/iree-run-module"
+install -m 0755 "${hexagon_tools_dir}/bin/apollo-iree-hexagon-runner" \
+  "${stage_dir}/bin/apollo-iree-hexagon-runner"
 install -m 0644 "${smoke_out}/tiny_cnn.onnx" "${stage_dir}/tiny_cnn.onnx"
 install -m 0644 "${smoke_out}/tiny_cnn.mlir" "${stage_dir}/tiny_cnn.mlir"
 install -m 0644 "${smoke_out}/tiny_cnn_aarch64.vmfb" "${stage_dir}/tiny_cnn_aarch64.vmfb"
@@ -110,6 +114,21 @@ exec "${runner}" \
 GUEST
 chmod 0755 "${stage_dir}/run_tiny_cnn_guest.sh"
 
+cat > "${stage_dir}/run_tiny_cnn_hexagon_guest.sh" <<'GUEST'
+#!/bin/sh
+set -eu
+
+self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+runner=${APOLLO_IREE_HEXAGON_RUNNER:-"${self_dir}/bin/apollo-iree-hexagon-runner"}
+if [ ! -x "${runner}" ]; then
+  echo "apollo-iree-hexagon-runner is not installed in this Buildroot image." >&2
+  exit 127
+fi
+
+exec "${runner}" "$@"
+GUEST
+chmod 0755 "${stage_dir}/run_tiny_cnn_hexagon_guest.sh"
+
 "${venv_dir}/bin/python" - "${stage_dir}" "${runtime_version}" <<'PY'
 from pathlib import Path
 import json
@@ -134,8 +153,13 @@ manifest = {
         'runner': 'bin/iree-run-module',
         'file': runner_file,
     },
+    'hexagon_offload': {
+        'runner': 'bin/apollo-iree-hexagon-runner',
+        'device': '/dev/apollo-hexagon',
+        'script': 'run_tiny_cnn_hexagon_guest.sh',
+    },
     'files': {str(p.relative_to(stage)): p.stat().st_size for p in sorted(stage.rglob('*')) if p.is_file()},
-    'next_requirement': 'Run /opt/qbox/iree/tiny-cnn/run_tiny_cnn_guest.sh in the Apollo QBox guest and compare the output.',
+    'next_requirement': 'Run run_tiny_cnn_guest.sh for A710 CPU or run_tiny_cnn_hexagon_guest.sh for Apollo Hexagon offload in the QBox guest.',
 }
 (stage / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
 print(json.dumps(manifest, indent=2))

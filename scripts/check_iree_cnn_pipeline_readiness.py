@@ -88,20 +88,26 @@ def repo_checks(repo: Path) -> list[Check]:
     add(checks, "runtime_module_guards", has(run_script, r"qemu_cpu_hexagon\.so") and has(run_script, r"apollo_hexagon_dma\.so") and has(run_script, r"apollo_smmu_tbu\.so"), "boot runner verifies Hexagon/SMMU runtime modules before launch", "hexagon_dma_smoke")
     add(checks, "translated_tlm_binding", has(platform, r"translated_dma = \{bind = \"&hexagon_smmu_tbu_0\.upstream\"\}") and has(platform, r"smmu_translated = true"), "Apollo Lua platform routes Hexagon DMA through SMMU-translated TLM path", "hexagon_dma_smoke")
     add(checks, "fixed_window_tbu", has(tbu, r"iova_base") and has(tbu, r"pa_base") and has(tbu, r"window_size") and has(tbu, r"TLM_ADDRESS_ERROR_RESPONSE"), "Apollo SMMU TBU supports fixed-window IOVA->PA translation and TLM address faults", "hexagon_dma_smoke")
+    add(checks, "dynamic_tbu_map_unmap", has(tbu, r"REG_MAP_CTRL") and has(tbu, r"MAP_CTRL_ADD") and has(tbu, r"MAP_CTRL_REMOVE") and has(tbu, r"log_map\(\"unmap\""), "Apollo SMMU TBU exposes functional dynamic map/unmap registers for Hexagon DMA windows", "hexagon_accelerator")
     add(checks, "dma_smoke_limit", has(dma, r"m_len > 4096"), "Apollo Hexagon DMA intentionally limits smoke transfers to 4096 bytes", "hexagon_accelerator_gap")
-    add(checks, "linux_driver_is_test_probe", has(driver, r"firmware dma traffic ok") and not has(driver, r"unlocked_ioctl|\.mmap|misc_register|cdev"), "Apollo Linux driver validates boot-time firmware DMA but exposes no user runtime submit ABI", "hexagon_accelerator_gap")
+    add(checks, "linux_driver_userspace_submit_abi", has(driver, r"misc_register") and has(driver, r"APOLLO_HEXAGON_IOC_SUBMIT_CNN") and has(driver, r"dynamic SMMU map refreshed"), "Apollo Linux driver exposes /dev/apollo-hexagon userspace submit ABI and refreshes dynamic SMMU mappings", "hexagon_accelerator")
     add(checks, "qemu_system_only", has(qemu_cmake, r"--disable-user") and has(qemu_cmake, r"\$\{target\}-softmmu"), "libqemu integration builds system targets and disables QEMU user-mode", "hexagon_runtime_gap")
 
     host_smoke_script = repo / "scripts/run_iree_tiny_cnn_host_smoke.sh"
     guest_stage_script = repo / "scripts/stage_iree_tiny_cnn_guest_artifacts.sh"
     guest_smoke_script = repo / "scripts/run_iree_tiny_cnn_qbox_guest_smoke.sh"
+    hexagon_smoke_script = repo / "scripts/run_iree_tiny_cnn_hexagon_qbox_guest_smoke.sh"
+    hexagon_runner = repo / "configs/buildroot/external/apollo_qbox/board/apollo/apollo-qbox/guest-tools/apollo_iree_hexagon_runner.c"
+    hexagon_firmware = repo / "sources/qbox/platforms/buildroot/fw/hexagon_dma_smoke.s"
     add(checks, "repo_iree_host_smoke_script", host_smoke_script.is_file() and os_access_executable(host_smoke_script), "repo-local host smoke script exists for ONNX->MLIR->IREE CPU validation", "a710_cpu_baseline")
     add(checks, "repo_iree_aarch64_compile", has(host_smoke_script, r"iree-llvmcpu-target-triple=aarch64-unknown-linux-gnu") and has(host_smoke_script, r"iree-llvmcpu-target-cpu=cortex-a710"), "host smoke also emits an AArch64/Cortex-A710 VMFB for guest staging", "a710_guest_artifact_baseline")
     add(checks, "repo_iree_guest_stage_script", guest_stage_script.is_file() and os_access_executable(guest_stage_script), "repo-local staging script packages tiny-CNN VMFB/reference/runner for Buildroot guest images", "a710_guest_artifact_baseline")
     add(checks, "repo_iree_guest_runtime_staged", has(guest_stage_script, r"iree-base-runtime") and has(guest_stage_script, r"bin/iree-run-module"), "guest staging script extracts an AArch64 iree-run-module runtime from the official wheel", "a710_guest_runtime")
     add(checks, "repo_iree_guest_smoke_script", guest_smoke_script.is_file() and os_access_executable(guest_smoke_script), "repo-local QBox guest smoke script verifies IREE tiny-CNN output in the booted guest", "a710_guest_runtime")
+    add(checks, "repo_iree_hexagon_hal_runner", hexagon_runner.is_file() and has(hexagon_runner, r"APOLLO_HEXAGON_IOC_SUBMIT_CNN") and has(guest_stage_script, r"apollo-iree-hexagon-runner"), "repo-local IREE-compatible Apollo Hexagon HAL runner submits the tiny CNN job to /dev/apollo-hexagon", "hexagon_accelerator")
+    add(checks, "repo_iree_hexagon_guest_smoke_script", hexagon_smoke_script.is_file() and os_access_executable(hexagon_smoke_script), "repo-local QBox guest smoke script verifies Hexagon offload output and SMMU map/unmap markers", "hexagon_accelerator")
+    add(checks, "hexagon_firmware_cnn_kernel", has(hexagon_firmware, r"0x42580000") and has(hexagon_firmware, r"0x10203000") and has(hexagon_firmware, r"job_loop"), "Hexagon firmware runtime consumes submit jobs, moves buffers through DMA, and emits tiny-CNN output", "hexagon_accelerator")
     add(checks, "buildroot_optional_iree_staging", has(post_build, r"QBOX_IREE_GUEST_ARTIFACTS_DIR") and has(post_build, r"/opt/qbox/iree/tiny-cnn"), "Buildroot post-build can optionally copy staged IREE tiny-CNN artifacts into the rootfs", "a710_guest_artifact_baseline")
-    add(checks, "repo_iree_hexagon_hal_absent", not has(driver, r"IREE|iree|HAL"), "Hexagon accelerator HAL integration is still absent; current IREE execution is A710 CPU local-task", "hexagon_accelerator_gap")
     return checks
 
 
@@ -137,8 +143,8 @@ def main() -> int:
         "checks": [check.__dict__ for check in checks],
         "classification": {
             "a710_cpu_iree_baseline": "guest_runtime_ready: boot/rootfs/kernel lane exists and AArch64 VMFB plus iree-run-module can be staged and smoke-tested",
-            "hexagon_iree_accelerator": "not_ready: requires HAL driver/device, command ABI, executable loader, user submit driver, dynamic SMMU mapping, and Hexagon kernels",
-            "smmu_dma_model": "smoke_ready_only: fixed-window translated TLM path with 4KiB DMA smoke limit",
+            "hexagon_iree_accelerator": "functional_offload_ready: /dev/apollo-hexagon submit ABI, dynamic TBU map/unmap, Hexagon firmware CNN kernel, and IREE-compatible guest HAL runner are implemented for the tiny CNN fixture",
+            "smmu_dma_model": "functional_dynamic_tbu_ready: dynamic map/unmap register path drives the existing translated TLM data plane; this is still a functional TBU model, not a full ARM SMMUv3 page-table walker",
         },
     }
 
