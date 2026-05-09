@@ -80,6 +80,7 @@ def repo_checks(repo: Path) -> list[Check]:
     qemu_cmake = repo / "sources/qemu/qemu.cmake"
 
     add(checks, "buildroot_rootfs_only", has(buildroot_defconfig, r"^BR2_TARGET_ROOTFS_CPIO=y$") and not has(buildroot_defconfig, r"^BR2_LINUX_KERNEL"), "Buildroot defconfig builds rootfs/initramfs and excludes kernel build", "a710_cpu_baseline")
+    add(checks, "buildroot_cxx_runtime", has(buildroot_defconfig, r"^BR2_TOOLCHAIN_BUILDROOT_CXX=y$") and has(buildroot_defconfig, r"^BR2_INSTALL_LIBSTDCPP=y$"), "Buildroot defconfig enables C++ and installs libstdc++ required by the IREE runner", "a710_guest_runtime")
     add(checks, "standalone_linux_builder", has(linux_script, r"sources/linux") and has(linux_script, r"\bImage\b") and has(linux_script, r"ccache"), "standalone Linux Image build script uses sources/linux and ccache", "a710_cpu_baseline")
     add(checks, "a710_linux_config", has(linux_config, r"^CONFIG_ARM_SMMU_V3=y$") and has(linux_config, r"^CONFIG_APOLLO_HEXAGON_TEST=y$"), "Linux config fragment enables ARM SMMUv3 and Apollo Hexagon test driver; ARCH=arm64 is supplied by build script", "a710_cpu_baseline")
     add(checks, "apollo_hexagon_dt_binding", has(dts, r"compatible = \"apollo,hexagon-ip\"") and has(dts, r"iommus = <&smmu 0x1>") and has(dts, r"apollo,dma-path = \"smmu-translated\""), "DTS exposes Apollo Hexagon node behind SMMU with smmu-translated DMA contract", "hexagon_dma_smoke")
@@ -93,11 +94,14 @@ def repo_checks(repo: Path) -> list[Check]:
 
     host_smoke_script = repo / "scripts/run_iree_tiny_cnn_host_smoke.sh"
     guest_stage_script = repo / "scripts/stage_iree_tiny_cnn_guest_artifacts.sh"
+    guest_smoke_script = repo / "scripts/run_iree_tiny_cnn_qbox_guest_smoke.sh"
     add(checks, "repo_iree_host_smoke_script", host_smoke_script.is_file() and os_access_executable(host_smoke_script), "repo-local host smoke script exists for ONNX->MLIR->IREE CPU validation", "a710_cpu_baseline")
     add(checks, "repo_iree_aarch64_compile", has(host_smoke_script, r"iree-llvmcpu-target-triple=aarch64-unknown-linux-gnu") and has(host_smoke_script, r"iree-llvmcpu-target-cpu=cortex-a710"), "host smoke also emits an AArch64/Cortex-A710 VMFB for guest staging", "a710_guest_artifact_baseline")
     add(checks, "repo_iree_guest_stage_script", guest_stage_script.is_file() and os_access_executable(guest_stage_script), "repo-local staging script packages tiny-CNN VMFB/reference/runner for Buildroot guest images", "a710_guest_artifact_baseline")
+    add(checks, "repo_iree_guest_runtime_staged", has(guest_stage_script, r"iree-base-runtime") and has(guest_stage_script, r"bin/iree-run-module"), "guest staging script extracts an AArch64 iree-run-module runtime from the official wheel", "a710_guest_runtime")
+    add(checks, "repo_iree_guest_smoke_script", guest_smoke_script.is_file() and os_access_executable(guest_smoke_script), "repo-local QBox guest smoke script verifies IREE tiny-CNN output in the booted guest", "a710_guest_runtime")
     add(checks, "buildroot_optional_iree_staging", has(post_build, r"QBOX_IREE_GUEST_ARTIFACTS_DIR") and has(post_build, r"/opt/qbox/iree/tiny-cnn"), "Buildroot post-build can optionally copy staged IREE tiny-CNN artifacts into the rootfs", "a710_guest_artifact_baseline")
-    add(checks, "repo_iree_guest_runtime_absent", not has(buildroot_defconfig, r"IREE|iree") and not has(driver, r"IREE|iree|HAL"), "Buildroot/Linux guest still has no packaged IREE runtime or accelerator HAL integration", "a710_guest_runtime_gap")
+    add(checks, "repo_iree_hexagon_hal_absent", not has(driver, r"IREE|iree|HAL"), "Hexagon accelerator HAL integration is still absent; current IREE execution is A710 CPU local-task", "hexagon_accelerator_gap")
     return checks
 
 
@@ -132,7 +136,7 @@ def main() -> int:
         "summary": summarize(checks),
         "checks": [check.__dict__ for check in checks],
         "classification": {
-            "a710_cpu_iree_baseline": "artifact_ready: boot/rootfs/kernel lane exists and AArch64 VMFB guest artifacts can be staged; IREE runtime packaging is still missing",
+            "a710_cpu_iree_baseline": "guest_runtime_ready: boot/rootfs/kernel lane exists and AArch64 VMFB plus iree-run-module can be staged and smoke-tested",
             "hexagon_iree_accelerator": "not_ready: requires HAL driver/device, command ABI, executable loader, user submit driver, dynamic SMMU mapping, and Hexagon kernels",
             "smmu_dma_model": "smoke_ready_only: fixed-window translated TLM path with 4KiB DMA smoke limit",
         },

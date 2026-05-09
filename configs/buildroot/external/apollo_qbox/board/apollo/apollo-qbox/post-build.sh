@@ -49,9 +49,8 @@ if [[ -n "${iree_guest_artifacts_dir}" ]]; then
   cat > "${target_dir}/opt/qbox/iree/README" <<'MARKER'
 This image contains optional Apollo QBox IREE tiny-CNN guest artifacts.
 
-The default minimal image does not include iree-run-module yet.  Once an
-AArch64 IREE runtime package or a custom IREE C runner is added to Buildroot,
-run:
+The default minimal image does not include IREE artifacts. When this directory
+is present, run:
 
   /opt/qbox/iree/tiny-cnn/run_tiny_cnn_guest.sh
 MARKER

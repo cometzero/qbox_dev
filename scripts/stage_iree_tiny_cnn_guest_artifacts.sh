@@ -4,8 +4,63 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 smoke_out=${QBOX_IREE_SMOKE_OUT:-"${repo_root}/build/verification/iree-tiny-cnn-host"}
 stage_dir=${QBOX_IREE_GUEST_STAGE_DIR:-"${repo_root}/build/iree-guest-artifacts/tiny-cnn"}
+venv_dir=${QBOX_IREE_SMOKE_VENV:-"${repo_root}/build/iree-smoke-venv"}
+runtime_version=${QBOX_IREE_RUNTIME_VERSION:-3.11.0}
+wheel_dir=${QBOX_IREE_AARCH64_WHEEL_DIR:-"${repo_root}/build/iree-aarch64-wheel"}
+extract_dir=${QBOX_IREE_AARCH64_EXTRACT_DIR:-"${repo_root}/build/iree-aarch64-runtime-extract"}
 
 "${repo_root}/scripts/run_iree_tiny_cnn_host_smoke.sh"
+
+if [[ ! -x "${venv_dir}/bin/python" ]]; then
+  python3 -m venv "${venv_dir}"
+fi
+
+mkdir -p "${wheel_dir}"
+if ! compgen -G "${wheel_dir}/iree_base_runtime-${runtime_version}-*aarch64*.whl" >/dev/null; then
+  "${venv_dir}/bin/python" -m pip download \
+    --only-binary=:all: \
+    --no-deps \
+    --platform manylinux_2_28_aarch64 \
+    --implementation cp \
+    --python-version 312 \
+    --abi cp312 \
+    --dest "${wheel_dir}" \
+    "iree-base-runtime==${runtime_version}"
+fi
+
+rm -rf "${extract_dir}"
+"${venv_dir}/bin/python" - "${wheel_dir}" "${runtime_version}" "${extract_dir}" <<'PY'
+from pathlib import Path
+import sys
+import zipfile
+
+wheel_dir = Path(sys.argv[1])
+runtime_version = sys.argv[2]
+extract_dir = Path(sys.argv[3])
+wheels = sorted(wheel_dir.glob(f"iree_base_runtime-{runtime_version}-*aarch64*.whl"))
+if not wheels:
+    raise SystemExit(f"no aarch64 iree-base-runtime wheel found in {wheel_dir}")
+wheel = wheels[-1]
+needed = {
+    "iree/_runtime_libs/iree-run-module",
+    "iree/_runtime_libs/version.py",
+}
+with zipfile.ZipFile(wheel) as zf:
+    names = set(zf.namelist())
+    missing = sorted(needed - names)
+    if missing:
+        raise SystemExit(f"wheel {wheel} missing {missing}")
+    for name in needed:
+        zf.extract(name, extract_dir)
+print(wheel)
+PY
+
+runtime_bin="${extract_dir}/iree/_runtime_libs/iree-run-module"
+if [[ ! -s "${runtime_bin}" ]]; then
+  echo "missing extracted AArch64 iree-run-module: ${runtime_bin}" >&2
+  exit 1
+fi
+chmod 0755 "${runtime_bin}"
 
 required=(
   "${smoke_out}/tiny_cnn.onnx"
@@ -23,7 +78,8 @@ for path in "${required[@]}"; do
 done
 
 rm -rf "${stage_dir}"
-install -d "${stage_dir}"
+install -d "${stage_dir}/bin"
+install -m 0755 "${runtime_bin}" "${stage_dir}/bin/iree-run-module"
 install -m 0644 "${smoke_out}/tiny_cnn.onnx" "${stage_dir}/tiny_cnn.onnx"
 install -m 0644 "${smoke_out}/tiny_cnn.mlir" "${stage_dir}/tiny_cnn.mlir"
 install -m 0644 "${smoke_out}/tiny_cnn_aarch64.vmfb" "${stage_dir}/tiny_cnn_aarch64.vmfb"
@@ -34,14 +90,19 @@ cat > "${stage_dir}/run_tiny_cnn_guest.sh" <<'GUEST'
 #!/bin/sh
 set -eu
 
-module=${1:-/opt/qbox/iree/tiny-cnn/tiny_cnn_aarch64.vmfb}
-if ! command -v iree-run-module >/dev/null 2>&1; then
+self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+module=${1:-"${self_dir}/tiny_cnn_aarch64.vmfb"}
+runner=${IREE_RUN_MODULE:-"${self_dir}/bin/iree-run-module"}
+if [ ! -x "${runner}" ]; then
+  runner=$(command -v iree-run-module || true)
+fi
+if [ -z "${runner}" ] || [ ! -x "${runner}" ]; then
   echo "iree-run-module is not installed in this Buildroot image." >&2
   echo "The VMFB and reference fixture are staged; add an AArch64 IREE runtime package next." >&2
   exit 127
 fi
 
-exec iree-run-module \
+exec "${runner}" \
   --module="${module}" \
   --device=local-task \
   --function=tiny_cnn_graph \
@@ -49,20 +110,32 @@ exec iree-run-module \
 GUEST
 chmod 0755 "${stage_dir}/run_tiny_cnn_guest.sh"
 
-python3 - "${stage_dir}" <<'PY'
+"${venv_dir}/bin/python" - "${stage_dir}" "${runtime_version}" <<'PY'
 from pathlib import Path
 import json
-import os
+import subprocess
 import sys
 stage = Path(sys.argv[1])
+runtime_version = sys.argv[2]
+runner = stage / 'bin' / 'iree-run-module'
+try:
+    runner_file = subprocess.check_output(['file', str(runner)], text=True).strip()
+except Exception as exc:
+    runner_file = repr(exc)
 manifest = {
     'name': 'apollo-qbox-iree-tiny-cnn-guest-artifacts',
     'status': 'staged',
     'target': 'aarch64-unknown-linux-gnu llvm-cpu local-task',
     'guest_install_path': '/opt/qbox/iree/tiny-cnn',
     'expected_output': '1x1x2x2xf32=[[[54 63][90 99]]]',
-    'files': {p.name: p.stat().st_size for p in sorted(stage.iterdir()) if p.is_file()},
-    'next_requirement': 'Package an AArch64 iree-run-module or custom IREE C runner into Buildroot to execute this VMFB in guest.',
+    'runtime': {
+        'source': 'PyPI iree-base-runtime manylinux aarch64 wheel',
+        'version': runtime_version,
+        'runner': 'bin/iree-run-module',
+        'file': runner_file,
+    },
+    'files': {str(p.relative_to(stage)): p.stat().st_size for p in sorted(stage.rglob('*')) if p.is_file()},
+    'next_requirement': 'Run /opt/qbox/iree/tiny-cnn/run_tiny_cnn_guest.sh in the Apollo QBox guest and compare the output.',
 }
 (stage / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
 print(json.dumps(manifest, indent=2))

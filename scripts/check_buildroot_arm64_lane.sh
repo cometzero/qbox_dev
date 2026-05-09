@@ -81,9 +81,12 @@ require_executable "${repo_root}/scripts/stage_buildroot_artifacts.sh" "artifact
 require_executable "${repo_root}/scripts/check_qbox_hexagon_smmu_reference.sh" "QBox Hexagon SMMU reference preflight script"
 require_executable "${repo_root}/scripts/run_iree_tiny_cnn_host_smoke.sh" "IREE tiny-CNN host smoke script"
 require_executable "${repo_root}/scripts/stage_iree_tiny_cnn_guest_artifacts.sh" "IREE tiny-CNN guest artifact staging script"
+require_executable "${repo_root}/scripts/run_iree_tiny_cnn_qbox_guest_smoke.sh" "IREE tiny-CNN QBox guest smoke script"
 
 require_grep '^BR2_aarch64=y$' "${defconfig}" "AArch64 target"
 require_grep '^BR2_cortex_a710=y$' "${defconfig}" "Cortex-A710 target tuning"
+require_grep '^BR2_TOOLCHAIN_BUILDROOT_CXX=y$' "${defconfig}" "Buildroot C++ toolchain support"
+require_grep '^BR2_INSTALL_LIBSTDCPP=y$' "${defconfig}" "target libstdc++ runtime for IREE runner"
 require_grep '^BR2_CCACHE=y$' "${defconfig}" "Buildroot ccache"
 require_grep '^BR2_TARGET_ROOTFS_CPIO=y$' "${defconfig}" "CPIO initramfs"
 require_grep 'BR2_ROOTFS_DEVICE_TABLE=.*device_table\.txt' "${defconfig}" "early device table configured"
@@ -121,6 +124,9 @@ require_grep 'mount -t devtmpfs devtmpfs /dev' "${board}/post-build.sh" "post-bu
 require_grep 'QBOX_IREE_GUEST_ARTIFACTS_DIR' "${board}/post-build.sh" "post-build optional IREE guest artifact hook"
 require_grep '/opt/qbox/iree/tiny-cnn' "${board}/post-build.sh" "post-build IREE tiny-CNN guest install path"
 require_grep '/dev/ttyAMA0[[:space:]]+c[[:space:]]+660' "${board}/device_table.txt" "static ttyAMA0 fallback node"
+require_grep 'iree-base-runtime' "${repo_root}/scripts/stage_iree_tiny_cnn_guest_artifacts.sh" "IREE AArch64 runtime wheel source"
+require_grep 'bin/iree-run-module' "${repo_root}/scripts/stage_iree_tiny_cnn_guest_artifacts.sh" "IREE guest runner staging"
+require_grep '1x1x2x2xf32=\[\[\[54 63\]\[90 99\]\]\]' "${repo_root}/scripts/run_iree_tiny_cnn_qbox_guest_smoke.sh" "IREE guest output contract"
 
 qbox_root="${repo_root}/sources/qbox"
 platform="${qbox_root}/platforms/buildroot/conf_aarch64.lua"

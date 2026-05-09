@@ -10,8 +10,8 @@ pipeline을 Apollo QBox 환경에 단계적으로 연결한다. 현재 기능 �
 
 - 즉시 완료 범위: host CPU에서 tiny CNN의 ONNX → MLIR → IREE CPU VMFB →
   `local-task` runtime 실행을 반복 검증한다.
-- 부분 준비 범위: A710 Linux/Buildroot 부팅 lane은 준비되어 있으나, guest 내부
-  IREE runtime packaging과 runner는 아직 없다.
+- 완료 범위: A710 Linux/Buildroot 부팅 lane에서 AArch64 IREE runtime runner와
+  VMFB를 rootfs에 staging하고 guest 내부에서 tiny CNN 출력까지 검증한다.
 - 미지원 범위: Hexagon을 IREE accelerator/HAL device로 사용하는 경로는 아직
   command ABI, Linux user submit driver, executable loader, dynamic SMMU mapping,
   Hexagon kernel runtime이 없다.
@@ -25,7 +25,7 @@ pipeline을 Apollo QBox 환경에 단계적으로 연결한다. 현재 기능 �
 | IREE-CNN-003 | 완료 | `doc/spec/qbox-iree-cnn-pipeline-tasks.md` | 다음 단계 task backlog와 acceptance criteria | 문서 검토 및 repo check |
 | IREE-CNN-004 | 완료 | `doc/verification/qbox-iree-cnn-pipeline-2026-04-28.md` | 한글 구현/검증 리포트 | 실행 로그와 boot evidence 연결 |
 | IREE-CNN-005A | 완료 | `scripts/stage_iree_tiny_cnn_guest_artifacts.sh`, `post-build.sh` | AArch64 VMFB/reference/runner를 Buildroot rootfs에 선택 staging | `rootfs.cpio` 내 `/opt/qbox/iree/tiny-cnn` 확인 |
-| IREE-CNN-005B | 차기 | Buildroot external tree, IREE runtime package | A710 guest 내부 `iree-run-module` 실행 | qbox guest에서 tensor output 비교 |
+| IREE-CNN-005B | 완료 | Buildroot external tree, IREE runtime package | A710 guest 내부 `iree-run-module` 실행 | qbox guest에서 tensor output `1x1x2x2xf32=[[[54 63][90 99]]]` 비교 |
 | IREE-CNN-006 | 차기 | Apollo Linux driver/DTS | user submit ABI, mmap/ioctl, completion path | userspace command smoke |
 | IREE-CNN-007 | 차기 | Apollo SMMU/TBU model | dynamic map/unmap, fault reporting, >4KB DMA | SMMU fault/no-fault test |
 | IREE-CNN-008 | 차기 | IREE out-of-tree HAL | `apollo-hexagon` HAL driver/device prototype | IREE Runtime device enumeration |
@@ -43,10 +43,10 @@ pipeline을 Apollo QBox 환경에 단계적으로 연결한다. 현재 기능 �
 
 ### A710 guest baseline
 
-1. Buildroot rootfs에 IREE runtime 또는 runner가 포함되어야 한다.
+1. Buildroot rootfs에 IREE runtime 또는 runner가 포함되어야 한다. **완료**
 2. AArch64 target VMFB 또는 compatible runtime artifact가 staging되어야 한다. **완료**
 3. qbox boot 후 staged rootfs가 기존 boot lane을 깨지 않아야 한다. **완료**
-4. qbox boot 후 guest shell에서 동일 CNN output을 확인해야 한다. **차기: IREE runtime 필요**
+4. qbox boot 후 guest shell에서 동일 CNN output을 확인해야 한다. **완료: `scripts/run_iree_tiny_cnn_qbox_guest_smoke.sh`**
 
 ### Hexagon accelerator path
 
@@ -58,7 +58,7 @@ pipeline을 Apollo QBox 환경에 단계적으로 연결한다. 현재 기능 �
 
 ## 현재 Blocker
 
-- repo에는 IREE guest runtime package 또는 Buildroot package가 없다. AArch64 VMFB/reference artifact staging은 준비됨.
+- A710 CPU IREE baseline은 guest 실행까지 완료됐다. 단, 현재 runner는 PyPI `iree-base-runtime` manylinux AArch64 wheel에서 추출한 `iree-run-module`을 optional rootfs artifact로 staging하는 방식이며, Buildroot native package화는 아직 별도 과제다.
 - `apollo-hexagon-test`는 probe-time DMA selftest driver이며 userspace ABI가 없다.
 - `apollo_hexagon_dma`는 4KB smoke copy 제한을 가진 MMIO DMA model이다.
 - `apollo_smmu_tbu`는 fixed-window translator이며 SMMUv3 page-table datapath가 아니다.
