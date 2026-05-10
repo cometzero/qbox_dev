@@ -4,10 +4,10 @@
 This is intentionally split into:
   * host/tooling checks for ONNX -> MLIR -> IREE CPU execution,
   * repo contract checks for the current A710 Linux boot lane, and
-  * repo gap checks for a future Hexagon accelerator/HAL path.
+  * repo checks for the Apollo Hexagon productization baseline.
 
-It does not claim Hexagon IREE support.  Instead, it produces machine-readable
-classification so later work can turn missing items into concrete tasks.
+It distinguishes the repo-local functional HAL baseline from a future upstream
+IREE plugin and full architectural ARM SMMUv3 model.
 """
 from __future__ import annotations
 
@@ -88,9 +88,22 @@ def repo_checks(repo: Path) -> list[Check]:
     add(checks, "runtime_module_guards", has(run_script, r"qemu_cpu_hexagon\.so") and has(run_script, r"apollo_hexagon_dma\.so") and has(run_script, r"apollo_smmu_tbu\.so"), "boot runner verifies Hexagon/SMMU runtime modules before launch", "hexagon_dma_smoke")
     add(checks, "translated_tlm_binding", has(platform, r"translated_dma = \{bind = \"&hexagon_smmu_tbu_0\.upstream\"\}") and has(platform, r"smmu_translated = true"), "Apollo Lua platform routes Hexagon DMA through SMMU-translated TLM path", "hexagon_dma_smoke")
     add(checks, "fixed_window_tbu", has(tbu, r"iova_base") and has(tbu, r"pa_base") and has(tbu, r"window_size") and has(tbu, r"TLM_ADDRESS_ERROR_RESPONSE"), "Apollo SMMU TBU supports fixed-window IOVA->PA translation and TLM address faults", "hexagon_dma_smoke")
-    add(checks, "dynamic_tbu_map_unmap", has(tbu, r"REG_MAP_CTRL") and has(tbu, r"MAP_CTRL_ADD") and has(tbu, r"MAP_CTRL_REMOVE") and has(tbu, r"log_map\(\"unmap\""), "Apollo SMMU TBU exposes functional dynamic map/unmap registers for Hexagon DMA windows", "hexagon_accelerator")
-    add(checks, "dma_smoke_limit", has(dma, r"m_len > 4096"), "Apollo Hexagon DMA intentionally limits smoke transfers to 4096 bytes", "hexagon_accelerator_gap")
+    add(checks, "dynamic_tbu_map_unmap", has(tbu, r"REG_MAP_CTRL") and has(tbu, r"MAP_CTRL_ADD") and has(tbu, r"MAP_CTRL_REMOVE") and has(tbu, r"MAP_CTRL_CLEAR") and has(tbu, r'log_map\("unmap"'), "Apollo SMMU TBU exposes functional dynamic map/unmap/clear registers for Hexagon DMA windows", "hexagon_accelerator")
+    add(checks, "tbu_page_table_ats_pri_fault", has(tbu, r"FEATURE_PAGE_TABLE_WALKER") and has(tbu, r"FEATURE_ATS_CACHE") and has(tbu, r"FEATURE_PRI_QUEUE") and has(tbu, r"FEATURE_FAULT_QUEUE") and has(tbu, r"page-table walk") and has(tbu, r"fault queue push"), "Apollo SMMU TBU exposes functional page-table walk, ATS cache, PRI, and fault queue observability", "hexagon_integration")
+    add(checks, "tbu_arch_descriptor_probe", has(tbu, r"FEATURE_ARCH_DESCRIPTOR_WALK") and has(tbu, r"read_downstream_u64") and has(tbu, r"architectural descriptor walk"), "Apollo SMMU TBU can fetch and decode descriptor-backed page-table entries through downstream TLM", "hexagon_architecture_slice")
+    add(checks, "tbu_arch_4level_probe", has(tbu, r"FEATURE_ARCH_4_LEVEL_WALK") and has(tbu, r"arch_level_index") and has(tbu, r"architectural table walk") and has(tbu, r"levels="), "Apollo SMMU TBU follows a 4KB-granule 4-level table-descriptor chain before decoding the L3 page descriptor", "hexagon_architecture_slice")
+    add(checks, "tbu_stream_context_descriptor_walk", has(tbu, r"FEATURE_STREAM_TABLE_WALK") and has(tbu, r"FEATURE_CONTEXT_DESCRIPTOR_WALK") and has(tbu, r"architectural stream table walk") and has(tbu, r"architectural context descriptor walk"), "Apollo SMMU TBU fetches staged Stream Table Entries and Context Descriptors before the page-table descriptor chain", "hexagon_architecture_slice")
+    add(checks, "tbu_arch_fault_replay_protocol", has(tbu, r"FEATURE_ARCH_FAULT_REPLAY") and has(tbu, r"FEATURE_ARCH_ATS_PRI_PROTOCOL") and has(tbu, r"architected fault replay queued") and has(tbu, r"architected ATS translation response") and has(tbu, r"architected PRI response"), "Apollo SMMU TBU exposes architected ATS/PRI response counters and a negative fault replay path", "hexagon_architecture_slice")
+    add(checks, "tbu_multipage_split", has(tbu, r"translate_segment") and has(tbu, r"while \(offset < len\)") and has(tbu, r"set_data_ptr\(data \+ offset\)"), "Apollo SMMU TBU splits multi-page translated TLM transactions across mapped segments", "hexagon_productization")
+    add(checks, "dma_large_tensor_transfer", has(dma, r"MAX_DMA_LEN = 256 \* 1024") and has(dma, r"CAP_LARGE_TENSOR") and has(dma, r"m_len > MAX_DMA_LEN"), "Apollo Hexagon DMA supports >64KB productization stress transfers", "hexagon_integration")
+    add(checks, "dma_multi_queue_async_fence", has(dma, r"CAP_MULTI_QUEUE") and has(dma, r"CAP_ASYNC_FENCE") and has(dma, r"REG_JOB_QUEUE") and has(dma, r"REG_IRQ_STATUS") and has(dma, r"async irq pending"), "Apollo Hexagon DMA exposes multi-queue async IRQ/fence registers", "hexagon_integration")
     add(checks, "linux_driver_userspace_submit_abi", has(driver, r"misc_register") and has(driver, r"APOLLO_HEXAGON_IOC_SUBMIT_CNN") and has(driver, r"dynamic SMMU map refreshed"), "Apollo Linux driver exposes /dev/apollo-hexagon userspace submit ABI and refreshes dynamic SMMU mappings", "hexagon_accelerator")
+    add(checks, "linux_driver_sg_dma_stress_abi", has(driver, r"APOLLO_HEXAGON_IOC_DMA_STRESS") and has(driver, r"dynamic SMMU SG map refreshed") and has(driver, r"SG DMA stress ok queue=%u fence=%u bytes=%u segments=%u"), "Apollo Linux driver exposes multi-page scatter/gather DMA stress ABI and verifies copied data", "hexagon_productization")
+    add(checks, "linux_driver_async_smmuv3_probe", has(driver, r"SMMUv3 page-table walker/ATS/PRI/fault queue ready") and has(driver, r"async fence signaled queue=%u fence=%u"), "Apollo Linux driver verifies functional SMMUv3 feature registers and async fence/IRQ completion", "hexagon_integration")
+    add(checks, "linux_driver_arch_descriptor_probe", has(driver, r"SMMUv3 architectural descriptor probe ok") and has(driver, r"APOLLO_TBU_FEATURE_ARCH_DESCRIPTOR_WALK") and has(driver, r"APOLLO_HEXAGON_PTW_OFFSET"), "Apollo Linux driver seeds descriptor tables in shared SRAM and verifies the TBU descriptor-walk result", "hexagon_architecture_slice")
+    add(checks, "linux_driver_arch_4level_probe", has(driver, r"APOLLO_TBU_FEATURE_ARCH_4_LEVEL_WALK") and has(driver, r"APOLLO_HEXAGON_PTW_PAGES") and has(driver, r"4-level") and has(driver, r"APOLLO_TBU_REG_ARCH_LEVELS"), "Apollo Linux driver builds and verifies a 4-level 4KB-granule page-table chain for the descriptor probe", "hexagon_architecture_slice")
+    add(checks, "linux_driver_stream_context_descriptor_probe", has(driver, r"SMMUv3 stream/context descriptor probe ok") and has(driver, r"APOLLO_TBU_FEATURE_STREAM_TABLE_WALK") and has(driver, r"APOLLO_TBU_REG_ARCH_STE_BASE_LO") and has(driver, r"APOLLO_HEXAGON_STE_OFFSET"), "Apollo Linux driver stages STE/CD tables in shared SRAM and verifies the TBU stream/context walk result", "hexagon_architecture_slice")
+    add(checks, "linux_driver_negative_fault_replay", has(driver, r"SMMUv3 negative fault replay ok") and has(driver, r"APOLLO_TBU_ARCH_CTRL_NEGATIVE_REPLAY") and has(driver, r"APOLLO_TBU_ARCH_FAULT_STE_INVALID"), "Apollo Linux driver corrupts the staged STE and verifies architected negative fault replay accounting", "hexagon_architecture_slice")
     add(checks, "qemu_system_only", has(qemu_cmake, r"--disable-user") and has(qemu_cmake, r"\$\{target\}-softmmu"), "libqemu integration builds system targets and disables QEMU user-mode", "hexagon_runtime_gap")
 
     host_smoke_script = repo / "scripts/run_iree_tiny_cnn_host_smoke.sh"
@@ -98,15 +111,24 @@ def repo_checks(repo: Path) -> list[Check]:
     guest_smoke_script = repo / "scripts/run_iree_tiny_cnn_qbox_guest_smoke.sh"
     hexagon_smoke_script = repo / "scripts/run_iree_tiny_cnn_hexagon_qbox_guest_smoke.sh"
     hexagon_runner = repo / "configs/buildroot/external/apollo_qbox/board/apollo/apollo-qbox/guest-tools/apollo_iree_hexagon_runner.c"
+    hexagon_hal = repo / "configs/buildroot/external/apollo_qbox/board/apollo/apollo-qbox/guest-tools/apollo_iree_hexagon_hal.c"
+    hexagon_hal_h = repo / "configs/buildroot/external/apollo_qbox/board/apollo/apollo-qbox/guest-tools/apollo_iree_hexagon_hal.h"
+    hexagon_plugin = repo / "configs/buildroot/external/apollo_qbox/board/apollo/apollo-qbox/guest-tools/apollo_iree_hexagon_plugin.c"
+    hexagon_plugin_h = repo / "configs/buildroot/external/apollo_qbox/board/apollo/apollo-qbox/guest-tools/apollo_iree_hexagon_plugin.h"
+    iree_plugin_abi = repo / "configs/buildroot/external/apollo_qbox/board/apollo/apollo-qbox/guest-tools/apollo_iree_executable_plugin_abi.h"
+    hexagon_guest_uapi = repo / "configs/buildroot/external/apollo_qbox/board/apollo/apollo-qbox/guest-tools/apollo_hexagon_uapi_guest.h"
     hexagon_firmware = repo / "sources/qbox/platforms/buildroot/fw/hexagon_dma_smoke.s"
     add(checks, "repo_iree_host_smoke_script", host_smoke_script.is_file() and os_access_executable(host_smoke_script), "repo-local host smoke script exists for ONNX->MLIR->IREE CPU validation", "a710_cpu_baseline")
     add(checks, "repo_iree_aarch64_compile", has(host_smoke_script, r"iree-llvmcpu-target-triple=aarch64-unknown-linux-gnu") and has(host_smoke_script, r"iree-llvmcpu-target-cpu=cortex-a710"), "host smoke also emits an AArch64/Cortex-A710 VMFB for guest staging", "a710_guest_artifact_baseline")
     add(checks, "repo_iree_guest_stage_script", guest_stage_script.is_file() and os_access_executable(guest_stage_script), "repo-local staging script packages tiny-CNN VMFB/reference/runner for Buildroot guest images", "a710_guest_artifact_baseline")
     add(checks, "repo_iree_guest_runtime_staged", has(guest_stage_script, r"iree-base-runtime") and has(guest_stage_script, r"bin/iree-run-module"), "guest staging script extracts an AArch64 iree-run-module runtime from the official wheel", "a710_guest_runtime")
     add(checks, "repo_iree_guest_smoke_script", guest_smoke_script.is_file() and os_access_executable(guest_smoke_script), "repo-local QBox guest smoke script verifies IREE tiny-CNN output in the booted guest", "a710_guest_runtime")
-    add(checks, "repo_iree_hexagon_hal_runner", hexagon_runner.is_file() and has(hexagon_runner, r"APOLLO_HEXAGON_IOC_SUBMIT_CNN") and has(guest_stage_script, r"apollo-iree-hexagon-runner"), "repo-local IREE-compatible Apollo Hexagon HAL runner submits the tiny CNN job to /dev/apollo-hexagon", "hexagon_accelerator")
-    add(checks, "repo_iree_hexagon_guest_smoke_script", hexagon_smoke_script.is_file() and os_access_executable(hexagon_smoke_script), "repo-local QBox guest smoke script verifies Hexagon offload output and SMMU map/unmap markers", "hexagon_accelerator")
+    add(checks, "repo_iree_hexagon_hal_runner", hexagon_runner.is_file() and hexagon_hal.is_file() and hexagon_hal_h.is_file() and hexagon_guest_uapi.is_file() and has(hexagon_runner, r"command buffer submitted") and has(hexagon_hal, r"apollo_hexagon_load_executable") and has(hexagon_hal, r"apollo_hexagon_queue_submit_cnn") and has(guest_stage_script, r"apollo-iree-hexagon-runner"), "repo-local IREE-compatible Apollo Hexagon HAL runner has executable metadata, queue, command buffer, and fence layers", "hexagon_productization")
+    add(checks, "repo_iree_dynamic_hal_plugin", hexagon_plugin.is_file() and hexagon_plugin_h.is_file() and iree_plugin_abi.is_file() and has(hexagon_plugin, r"apollo_iree_hexagon_plugin_query") and has(hexagon_plugin, r"iree_hal_executable_plugin_query") and has(guest_stage_script, r"libapollo_iree_hexagon_hal_plugin\.so"), "repo-local dynamic C HAL plugin also exports the upstream IREE executable_plugin query symbol", "hexagon_integration")
+    add(checks, "repo_iree_hexagon_metadata", has(guest_stage_script, r"apollo_hexagon\.vmfb\.meta") and has(guest_stage_script, r"command_buffer=fixed") and has(guest_stage_script, r"fence=async-irq-poll") and has(guest_stage_script, r"upstream_executable_plugin=iree_hal_executable_plugin_query"), "guest staging emits VMFB metadata and dynamic plugin path used by the Apollo Hexagon HAL loader", "hexagon_productization")
+    add(checks, "repo_iree_hexagon_guest_smoke_script", hexagon_smoke_script.is_file() and os_access_executable(hexagon_smoke_script) and has(hexagon_smoke_script, r"SG DMA stress ok queue=0") and has(hexagon_smoke_script, r"bytes=131072 segments=8") and has(hexagon_smoke_script, r"async fence signaled queue=1"), "repo-local QBox guest smoke script verifies Hexagon offload, >64KB SG DMA, async fences, and SMMU markers", "hexagon_productization")
     add(checks, "hexagon_firmware_cnn_kernel", has(hexagon_firmware, r"0x42580000") and has(hexagon_firmware, r"0x10203000") and has(hexagon_firmware, r"job_loop"), "Hexagon firmware runtime consumes submit jobs, moves buffers through DMA, and emits tiny-CNN output", "hexagon_accelerator")
+    add(checks, "hexagon_firmware_dma_copy_runtime", has(hexagon_firmware, r"dma_copy_job") and has(hexagon_firmware, r"0x53474f4b") and has(hexagon_firmware, r"poll_copy_dma_done"), "Hexagon firmware runtime handles command-queue DMA copy jobs for multi-page stress traffic", "hexagon_productization")
     add(checks, "buildroot_optional_iree_staging", has(post_build, r"QBOX_IREE_GUEST_ARTIFACTS_DIR") and has(post_build, r"/opt/qbox/iree/tiny-cnn"), "Buildroot post-build can optionally copy staged IREE tiny-CNN artifacts into the rootfs", "a710_guest_artifact_baseline")
     return checks
 
@@ -143,8 +165,10 @@ def main() -> int:
         "checks": [check.__dict__ for check in checks],
         "classification": {
             "a710_cpu_iree_baseline": "guest_runtime_ready: boot/rootfs/kernel lane exists and AArch64 VMFB plus iree-run-module can be staged and smoke-tested",
-            "hexagon_iree_accelerator": "functional_offload_ready: /dev/apollo-hexagon submit ABI, dynamic TBU map/unmap, Hexagon firmware CNN kernel, and IREE-compatible guest HAL runner are implemented for the tiny CNN fixture",
-            "smmu_dma_model": "functional_dynamic_tbu_ready: dynamic map/unmap register path drives the existing translated TLM data plane; this is still a functional TBU model, not a full ARM SMMUv3 page-table walker",
+            "hexagon_iree_accelerator": "repo_local_integration_ready: dynamic C HAL plugin, /dev/apollo-hexagon submit ABI, VMFB metadata loader, multi-queue command buffer/fence runner, >64KB SG DMA stress, and firmware CNN runtime are implemented and smoke-testable",
+            "smmu_dma_model": "functional_smmuv3_ready: dynamic map/unmap/clear registers, page-table walk observability, ATS/PRI/fault queue status, and translated TLM splitting support >64KB SG stress",
+            "upstream_iree_hal_driver": "pending_upstream_work: repo-local executable_plugin export/load is covered; upstream IREE HAL device registration/build/test integration is not complete",
+            "architectural_smmuv3_model": "compliance_slice_advanced: current model includes STE/CD fetch, a descriptor-backed 4KB-granule 4-level page-table probe, architected ATS/PRI response accounting, and a negative fault replay suite; full bit-exact ARM SMMUv3 register/protocol coverage remains upstream-scale work",
         },
     }
 

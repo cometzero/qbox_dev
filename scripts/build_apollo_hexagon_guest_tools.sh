@@ -5,8 +5,9 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 buildroot_output=${QBOX_BUILDROOT_OUTPUT:-"${repo_root}/build/buildroot-a710"}
 toolchain_prefix=${QBOX_LINUX_CROSS_COMPILE:-"${buildroot_output}/host/bin/aarch64-buildroot-linux-gnu-"}
 out_dir=${QBOX_APOLLO_HEXAGON_TOOLS_OUT:-"${repo_root}/build/apollo-hexagon-guest-tools"}
-src="${repo_root}/configs/buildroot/external/apollo_qbox/board/apollo/apollo-qbox/guest-tools/apollo_iree_hexagon_runner.c"
+src_dir="${repo_root}/configs/buildroot/external/apollo_qbox/board/apollo/apollo-qbox/guest-tools"
 runner="${out_dir}/bin/apollo-iree-hexagon-runner"
+plugin="${out_dir}/lib/libapollo_iree_hexagon_hal_plugin.so"
 
 if [[ ! -x "${toolchain_prefix}gcc" ]]; then
   echo "Buildroot cross compiler missing: ${toolchain_prefix}gcc" >&2
@@ -14,19 +15,40 @@ if [[ ! -x "${toolchain_prefix}gcc" ]]; then
   exit 1
 fi
 
-mkdir -p "${out_dir}/bin"
+mkdir -p "${out_dir}/bin" "${out_dir}/lib"
 "${toolchain_prefix}gcc" \
   -Os \
   -Wall \
   -Wextra \
   -Werror \
-  "${src}" \
+  -I"${src_dir}" \
+  "${src_dir}/apollo_iree_hexagon_runner.c" \
+  "${src_dir}/apollo_iree_hexagon_hal.c" \
+  -ldl \
   -o "${runner}"
+
+"${toolchain_prefix}gcc" \
+  -Os \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -fPIC \
+  -shared \
+  -I"${src_dir}" \
+  "${src_dir}/apollo_iree_hexagon_plugin.c" \
+  "${src_dir}/apollo_iree_hexagon_hal.c" \
+  -o "${plugin}"
 
 if [[ ! -s "${runner}" ]]; then
   echo "failed to build Apollo Hexagon guest runner: ${runner}" >&2
   exit 1
 fi
+if [[ ! -s "${plugin}" ]]; then
+  echo "failed to build Apollo Hexagon HAL plugin: ${plugin}" >&2
+  exit 1
+fi
 
 file "${runner}"
+file "${plugin}"
 echo "Apollo Hexagon guest runner: ${runner}"
+echo "Apollo Hexagon HAL plugin: ${plugin}"

@@ -80,15 +80,28 @@ for path in "${required[@]}"; do
 done
 
 rm -rf "${stage_dir}"
-install -d "${stage_dir}/bin"
+install -d "${stage_dir}/bin" "${stage_dir}/lib"
 install -m 0755 "${runtime_bin}" "${stage_dir}/bin/iree-run-module"
 install -m 0755 "${hexagon_tools_dir}/bin/apollo-iree-hexagon-runner" \
   "${stage_dir}/bin/apollo-iree-hexagon-runner"
+install -m 0755 "${hexagon_tools_dir}/lib/libapollo_iree_hexagon_hal_plugin.so" \
+  "${stage_dir}/lib/libapollo_iree_hexagon_hal_plugin.so"
 install -m 0644 "${smoke_out}/tiny_cnn.onnx" "${stage_dir}/tiny_cnn.onnx"
 install -m 0644 "${smoke_out}/tiny_cnn.mlir" "${stage_dir}/tiny_cnn.mlir"
 install -m 0644 "${smoke_out}/tiny_cnn_aarch64.vmfb" "${stage_dir}/tiny_cnn_aarch64.vmfb"
 install -m 0644 "${smoke_out}/reference.json" "${stage_dir}/reference.json"
 install -m 0644 "${smoke_out}/report.json" "${stage_dir}/host-report.json"
+cat > "${stage_dir}/apollo_hexagon.vmfb.meta" <<'META'
+module=tiny_cnn_aarch64.vmfb
+entry=tiny_cnn_graph
+device=apollo-hexagon
+expected=1x1x2x2xf32=[[[54 63][90 99]]]
+plugin=lib/libapollo_iree_hexagon_hal_plugin.so
+upstream_executable_plugin=iree_hal_executable_plugin_query
+queue=multi
+command_buffer=fixed
+fence=async-irq-poll
+META
 
 cat > "${stage_dir}/run_tiny_cnn_guest.sh" <<'GUEST'
 #!/bin/sh
@@ -107,6 +120,7 @@ if [ -z "${runner}" ] || [ ! -x "${runner}" ]; then
 fi
 
 exec "${runner}" \
+  --executable_plugin="${self_dir}/lib/libapollo_iree_hexagon_hal_plugin.so" \
   --module="${module}" \
   --device=local-task \
   --function=tiny_cnn_graph \
@@ -125,7 +139,8 @@ if [ ! -x "${runner}" ]; then
   exit 127
 fi
 
-exec "${runner}" "$@"
+exec "${runner}" --metadata "${self_dir}/apollo_hexagon.vmfb.meta" \
+  --plugin "${self_dir}/lib/libapollo_iree_hexagon_hal_plugin.so" "$@"
 GUEST
 chmod 0755 "${stage_dir}/run_tiny_cnn_hexagon_guest.sh"
 
@@ -155,8 +170,16 @@ manifest = {
     },
     'hexagon_offload': {
         'runner': 'bin/apollo-iree-hexagon-runner',
+        'plugin': 'lib/libapollo_iree_hexagon_hal_plugin.so',
+        'upstream_executable_plugin_export': 'iree_hal_executable_plugin_query',
         'device': '/dev/apollo-hexagon',
         'script': 'run_tiny_cnn_hexagon_guest.sh',
+        'metadata': 'apollo_hexagon.vmfb.meta',
+        'queue': 'multi',
+        'command_buffer': 'fixed',
+        'fence': 'async-irq-poll',
+        'dma_stress_bytes': 131072,
+        'dma_stress_segments': 8,
     },
     'files': {str(p.relative_to(stage)): p.stat().st_size for p in sorted(stage.rglob('*')) if p.is_file()},
     'next_requirement': 'Run run_tiny_cnn_guest.sh for A710 CPU or run_tiny_cnn_hexagon_guest.sh for Apollo Hexagon offload in the QBox guest.',
