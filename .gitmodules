@@ -16,3 +16,6 @@
 	url = https://github.com/cometzero/qemu.git
 	shallow = false
 	branch = feature/qbox_dev
+[submodule "sources/smmu"]
+	path = sources/smmu
+	url = https://github.com/jpgreninger/smmu.git
