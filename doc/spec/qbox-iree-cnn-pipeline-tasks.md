@@ -20,6 +20,10 @@ pipeline을 Apollo QBox 환경에 단계적으로 연결한다. 현재 기능 �
   `iree-run-module --executable_plugin=...` 경로에서 load 가능한지 검증한다.
   단, upstream IREE runtime에 정식 HAL driver/plugin으로 등록되는 구현은 아직
   별도 과제다.
+- 완료 범위: guest artifact lane에서 `iree-run-module --device=apollo-hexagon`
+  호출이 repo-local upstream-style HAL registry frontend로 dispatch되고 CPU
+  fallback device name을 거부한다. 단, upstream IREE source tree에 HAL backend를
+  merge하는 작업은 아직 별도 과제다.
 - 완료 범위: SMMU-translated TLM path는 4KiB page split, functional page-table
   walk marker, ATS cache marker, PRI resolution marker, fault queue status/clear,
   128KiB scatter/gather DMA stress를 검증한다.
@@ -63,6 +67,7 @@ pipeline을 Apollo QBox 환경에 단계적으로 연결한다. 현재 기능 �
 | IREE-CNN-012 | 완료 | QBox TBU/DMA/firmware | multi-page TLM split, 64KB DMA cap, firmware DMA copy job | 4KiB read/write translate marker |
 | IREE-CNN-013 | 완료 | Smoke/report | 제품화 baseline booted guest 검증 리포트 | `qbox-iree-tiny-cnn-hexagon-guest-20260509-productization.log` |
 | IREE-CNN-014 | 완료(로컬) | Guest HAL plugin | repo-local dynamic C HAL plugin + upstream executable plugin export | `readelf` symbol check, `iree-run-module --executable_plugin` guest smoke; upstream HAL 등록은 `IREE-CNN-UPSTREAM-001` |
+| IREE-CNN-014A | 완료(기능 slice) | Guest HAL registry frontend | `iree-run-module --device=apollo-hexagon` dispatch + CPU fallback rejection | `qbox-smmuv3-comp-090-verification-2026-05-10.md`, registry negative tests, Hexagon guest smoke |
 | IREE-CNN-015 | 완료(기능 모델) | Apollo SMMU TBU | functional page walker marker, ATS cache marker, PRI resolution marker, fault queue status/clear | boot/probe log와 Hexagon smoke marker; architectural full walker는 `IREE-CNN-SMMU-001` |
 | IREE-CNN-015A | 완료(부분) | Apollo SMMU TBU + Linux probe | descriptor-backed 4-level page-table probe | `SMMUv3 architectural descriptor probe ok`, `architectural descriptor walk` marker |
 | IREE-CNN-015B | 완료(확장 slice) | Apollo SMMU TBU + Linux probe | STE/CD walk, ATS/PRI protocol counters, invalid STE fault replay | `SMMUv3 stream/context descriptor probe ok`, `SMMUv3 negative fault replay ok` marker |
@@ -89,6 +94,9 @@ pipeline을 Apollo QBox 환경에 단계적으로 연결한다. 현재 기능 �
    local-task 실행이 성공해야 한다. **완료(로컬 export/load 검증)**
 6. Apollo HAL device가 upstream IREE runtime에 정식 C HAL driver/plugin으로 등록되어
    local shim 없이 discover/open되어야 한다. **대기: `IREE-CNN-UPSTREAM-001`**
+6-1. QBox guest artifact lane에서 `iree-run-module --device=apollo-hexagon`이
+   Apollo registry frontend로 dispatch되고 CPU fallback을 거부해야 한다.
+   **완료(기능 slice): `IREE-CNN-014A`**
 
 ### Hexagon accelerator path
 
@@ -96,8 +104,9 @@ pipeline을 Apollo QBox 환경에 단계적으로 연결한다. 현재 기능 �
 2. HAL buffer가 DMA-capable shared memory와 SMMU IOVA로 연결되어야 한다. **완료**
 3. Hexagon firmware/runtime이 command queue를 소비하고 completion을 보고해야 한다.
    **완료**
-4. IREE HAL runner/plugin이 buffer, executable, queue, synchronization을 구현해야 한다.
-   **완료: repo-local functional HAL runner + dynamic C plugin**
+4. IREE HAL runner/plugin/registry frontend가 buffer, executable, queue,
+   synchronization을 구현해야 한다.
+   **완료: repo-local functional HAL runner + dynamic C plugin + registry dispatch**
 5. CNN output이 CPU reference와 일치해야 한다. **완료**
 
 ### SMMU, DMA, queue/fence integration
