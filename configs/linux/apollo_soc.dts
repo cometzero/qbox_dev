@@ -113,6 +113,14 @@
 		status = "okay";
 	};
 
+	virtio_net0: virtio@1c120000 {
+		compatible = "virtio,mmio";
+		reg = <0x00 0x1c120000 0x00 0x10000>;
+		interrupts = <0x00 0x12 0x04>;
+		dma-coherent;
+		status = "okay";
+	};
+
 	smmu: iommu@1c200000 {
 		compatible = "arm,smmu-v3";
 		reg = <0x00 0x1c200000 0x00 0x20000>;
@@ -134,6 +142,24 @@
 		iommus = <&smmu 0x1>;
 		apollo,dma-path = "smmu-translated";
 		apollo,smmu-stream-id = <0x1>;
+		apollo,dma-iova-base = <0x00 0x10000000>;
+		apollo,dma-window-size = <0x00 0x00600000>;
+		apollo,primary-endpoint;
+		dma-coherent;
+		memory-region = <&hexagon_sram>, <&shared_sram>;
+		memory-region-names = "firmware", "dma-test";
+		status = "okay";
+	};
+
+	hexagon-aux@1c300000 {
+		compatible = "apollo,hexagon-ip";
+		reg = <0x00 0x1c300000 0x00 0x3000>;
+		interrupts = <0x00 0x236 0x04>,
+			     <0x00 0x237 0x04>;
+		interrupt-names = "doorbell", "error";
+		iommus = <&smmu 0x2>;
+		apollo,dma-path = "smmu-translated";
+		apollo,smmu-stream-id = <0x2>;
 		apollo,dma-iova-base = <0x00 0x10000000>;
 		apollo,dma-window-size = <0x00 0x00600000>;
 		dma-coherent;

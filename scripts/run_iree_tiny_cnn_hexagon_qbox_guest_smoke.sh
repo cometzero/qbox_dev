@@ -34,20 +34,31 @@ for marker in \
   'Run /sbin/init as init process' \
   'apollo-qbox login:' \
   'userspace submit ABI ready at /dev/apollo-hexagon' \
+  'userspace submit ABI ready at /dev/apollo-hexagon-2 stream-id=0x2' \
+  'async doorbell irq ready irq=' \
+  'dma path smmu-translated caps=0x7d stream-id=' \
+  'smmuv3-translated=yes queues=2 async-fence=yes large-tensor=yes' \
   'SMMUv3 page-table walker/ATS/PRI/fault queue ready' \
-  'SMMUv3 architectural descriptor probe ok' \
-  'SMMUv3 architectural descriptor probe ok 4-level' \
   'SMMUv3 stream/context descriptor probe ok' \
-  'SMMUv3 negative fault replay ok' \
+  'SMMUv3 page-table walker/ATS/PRI/fault queue ready features=0x' \
+  'SMMUv3 architected queue' \
+  'SMMUv3 command invalidation selftest ok' \
+  'SMMUv3 DPTI unsupported command selftest ok' \
+  'cerror=1' \
+  'SMMUv3 REC_CFG_ATS translation request selftest ok' \
+  'SMMUv3 ATSCHK/EATS translation request selftest ok' \
+  'APOLLO_SMMU_TBU: architected CMDQ invalidation op=ATC_INV' \
+  'APOLLO_SMMU_TBU: architected CMDQ invalidation op=TLBI_NH_ALL' \
   'APOLLO_SMMU_TBU: map stream-id=0x1' \
   'APOLLO_SMMU_TBU: unmap stream-id=0x1' \
   'APOLLO_SMMU_TBU: architectural stream table walk stream-id=0x1' \
   'APOLLO_SMMU_TBU: architectural context descriptor walk stream-id=0x1' \
-  'APOLLO_SMMU_TBU: architectural table walk stream-id=0x1 level=0' \
-  'APOLLO_SMMU_TBU: architectural table walk stream-id=0x1 level=1' \
-  'APOLLO_SMMU_TBU: architectural table walk stream-id=0x1 level=2' \
+  'APOLLO_SMMU_TBU: architectural table walk stream-id=0x1 stage=1 granule=0x1000 level=0' \
+  'APOLLO_SMMU_TBU: architectural table walk stream-id=0x1 stage=1 granule=0x1000 level=1' \
+  'APOLLO_SMMU_TBU: architectural table walk stream-id=0x1 stage=1 granule=0x1000 level=2' \
   'APOLLO_SMMU_TBU: architectural descriptor walk stream-id=0x1' \
-  'APOLLO_SMMU_TBU: architectural descriptor walk stream-id=0x1 levels=4' \
+  'APOLLO_SMMU_TBU: architectural descriptor walk stream-id=0x1 stage=1 granule=0x1000 start-level=0' \
+  'levels=4 desc-pa=' \
   'APOLLO_SMMU_TBU: architected ATS translation response stream-id=0x1' \
   'APOLLO_SMMU_TBU: architected PRI response stream-id=0x1' \
   'APOLLO_SMMU_TBU: architected fault replay queued stream-id=0x1' \
@@ -57,20 +68,25 @@ for marker in \
   'APOLLO_SMMU_TBU: fault queue push stream-id=0x1' \
   'dynamic SMMU SG map refreshed bytes=131072 segments=8' \
   'APOLLO_HEXAGON_DMA: firmware requested DMA src=0x10020000 dst=0x10080000 len=0x20000' \
+  'APOLLO_HEXAGON_DMA: path=smmu-translated stream-id=0x1 pasid-valid=1 pasid=0x3' \
+  'APOLLO_SMMU_TBU: ATS cache fill stream-id=0x1' \
+  'ssid=0x3' \
+  'endpoint-ssid=0x3' \
   'APOLLO_HEXAGON_DMA: DMA copy complete src=0x10020000 dst=0x10080000 len=0x20000' \
+  'SMMUv3 RIL TLBI_NH_VA range selftest ok' \
   'APOLLO_HEXAGON_DMA: job status=0x1' \
   'APOLLO_HEXAGON_DMA: async irq pending queue=0' \
   'APOLLO_HEXAGON_DMA: async irq pending queue=1' \
+  'async fence irq wait signaled queue=' \
   'SG DMA stress ok queue=0' \
   'bytes=131072 segments=8' \
   'accelerator tiny cnn ok' \
-  'IREE Apollo Hexagon HAL: dynamic C HAL plugin=' \
-  'IREE Apollo Hexagon HAL: upstream executable_plugin export=iree_hal_executable_plugin_query available' \
+  'IREE Apollo Hexagon HAL: upstream-style HAL registry device=apollo-hexagon driver=apollo-hexagon-hal' \
+  'IREE Apollo Hexagon HAL: dynamically registered C HAL plugin=' \
+  'IREE Apollo Hexagon HAL: executable_plugin compatibility export=iree_hal_executable_plugin_query staged' \
   'IREE Apollo Hexagon HAL: queues=2 command-buffer=fixed fence=async-irq-poll' \
   'IREE Apollo Hexagon HAL: command buffer submitted' \
   'IREE Apollo Hexagon HAL: offload complete' \
-  'IREE Apollo Hexagon HAL: async fence signaled queue=0' \
-  'IREE Apollo Hexagon HAL: async fence signaled queue=1' \
   'EXEC @tiny_cnn_graph [apollo-hexagon]'; do
   if ! grep -F "${marker}" "${log_path}" >/dev/null; then
     echo "missing Hexagon offload marker: ${marker}" >&2

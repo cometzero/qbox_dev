@@ -51,6 +51,15 @@ static int direct_queue_submit_cnn(struct apollo_hexagon_queue *queue,
 					       error_len);
 }
 
+static int direct_queue_submit_vadd(struct apollo_hexagon_queue *queue,
+				    struct apollo_hexagon_vadd_command_buffer *cmd,
+				    struct apollo_hexagon_fence *fence,
+				    char *error, size_t error_len)
+{
+	return apollo_hexagon_queue_submit_vadd(queue, cmd, fence, error,
+						error_len);
+}
+
 static int direct_queue_submit_dma_stress(struct apollo_hexagon_queue *queue,
 					  uint32_t bytes, uint32_t seed,
 					  uint32_t *checksum,
@@ -70,6 +79,7 @@ static const struct apollo_iree_hexagon_plugin_v1 direct_ops = {
 	.queue_close = direct_queue_close,
 	.queue_select = direct_queue_select,
 	.queue_submit_cnn = direct_queue_submit_cnn,
+	.queue_submit_vadd = direct_queue_submit_vadd,
 	.queue_submit_dma_stress = direct_queue_submit_dma_stress,
 };
 
@@ -99,7 +109,7 @@ static int load_hal_plugin(const char *path, struct hal_binding *binding,
 	}
 	binding->ops = query(APOLLO_IREE_HEXAGON_PLUGIN_API_VERSION);
 	if (!binding->ops || !binding->ops->queue_open ||
-	    !binding->ops->queue_submit_cnn ||
+	    !binding->ops->queue_submit_cnn || !binding->ops->queue_submit_vadd ||
 	    !binding->ops->queue_submit_dma_stress) {
 		snprintf(error, error_len, "HAL plugin has incompatible ABI");
 		dlclose(binding->dl_handle);
@@ -143,6 +153,7 @@ int main(int argc, char **argv)
 	const char *plugin = NULL;
 	struct apollo_hexagon_executable exe;
 	struct apollo_hexagon_command_buffer cmd;
+	struct apollo_hexagon_vadd_command_buffer vadd_cmd;
 	struct apollo_hexagon_queue queue;
 	struct apollo_hexagon_fence fence;
 	struct hal_binding binding;
@@ -238,6 +249,41 @@ int main(int argc, char **argv)
 	if (stress_only) {
 		binding.ops->queue_close(&queue);
 		unload_hal_plugin(&binding);
+		return 0;
+	}
+
+	if (strcmp(exe.entry_point, "vector_add_graph") == 0) {
+		memset(&vadd_cmd, 0, sizeof(vadd_cmd));
+		for (i = 0; i < APOLLO_HEXAGON_VADD_WORDS; i++) {
+			vadd_cmd.lhs[i] = (uint32_t)i + 1;
+			vadd_cmd.rhs[i] = ((uint32_t)i + 1) * 10;
+		}
+
+		memset(&fence, 0, sizeof(fence));
+		binding.ops->queue_select(&queue, 1);
+		ret = binding.ops->queue_submit_vadd(&queue, &vadd_cmd, &fence,
+						     error, sizeof(error));
+		if (ret) {
+			fprintf(stderr, "%s: %s\n", error, strerror(-ret));
+			binding.ops->queue_close(&queue);
+			unload_hal_plugin(&binding);
+			return 1;
+		}
+		binding.ops->queue_close(&queue);
+		unload_hal_plugin(&binding);
+
+		printf("IREE Apollo Hexagon HAL: command buffer submitted\n");
+		printf("IREE Apollo Hexagon HAL: offload complete queue=%u status=0x%08x\n",
+		       fence.queue_id, vadd_cmd.status);
+		printf("IREE Apollo Hexagon HAL: async fence signaled queue=%u fence=%u status=0x%08x\n",
+		       fence.queue_id, fence.fence_seq, fence.status);
+		printf("EXEC @%s [apollo-hexagon]\n", exe.entry_point);
+		printf("result[0]: hal.buffer_view\n");
+		printf("4xf32=%.0f %.0f %.0f %.0f\n",
+		       word_to_float(vadd_cmd.output[0]),
+		       word_to_float(vadd_cmd.output[1]),
+		       word_to_float(vadd_cmd.output[2]),
+		       word_to_float(vadd_cmd.output[3]));
 		return 0;
 	}
 

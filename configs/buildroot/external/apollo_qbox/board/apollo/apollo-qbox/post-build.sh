@@ -37,6 +37,36 @@ if grep -q '^devtmpfs[[:space:]]\+/dev[[:space:]]' "${fstab}"; then
   mv "${tmp_fstab}" "${fstab}"
 fi
 
+interfaces="${target_dir}/etc/network/interfaces"
+if [[ -f "${interfaces}" ]] && ! grep -q '^auto eth0$' "${interfaces}"; then
+  cat >> "${interfaces}" <<'MARKER'
+
+auto eth0
+iface eth0 inet dhcp
+MARKER
+fi
+
+set_sshd_config() {
+  local file=$1 key=$2 value=$3 tmp_file
+
+  tmp_file="${file}.tmp"
+  if grep -Eq "^[#[:space:]]*${key}[[:space:]]+" "${file}"; then
+    sed -E "s|^[#[:space:]]*${key}[[:space:]].*|${key} ${value}|" \
+      "${file}" > "${tmp_file}"
+  else
+    cp "${file}" "${tmp_file}"
+    printf '%s %s\n' "${key}" "${value}" >> "${tmp_file}"
+  fi
+  mv "${tmp_file}" "${file}"
+}
+
+sshd_config="${target_dir}/etc/ssh/sshd_config"
+if [[ -f "${sshd_config}" ]]; then
+  set_sshd_config "${sshd_config}" PermitRootLogin yes
+  set_sshd_config "${sshd_config}" PasswordAuthentication yes
+  set_sshd_config "${sshd_config}" PermitEmptyPasswords yes
+fi
+
 iree_guest_artifacts_dir=${QBOX_IREE_GUEST_ARTIFACTS_DIR:-}
 if [[ -n "${iree_guest_artifacts_dir}" ]]; then
   if [[ ! -d "${iree_guest_artifacts_dir}" ]]; then
@@ -53,5 +83,23 @@ The default minimal image does not include IREE artifacts. When this directory
 is present, run:
 
   /opt/qbox/iree/tiny-cnn/run_tiny_cnn_guest.sh
+MARKER
+fi
+
+iree_vector_add_guest_artifacts_dir=${QBOX_IREE_VECTOR_ADD_GUEST_ARTIFACTS_DIR:-}
+if [[ -n "${iree_vector_add_guest_artifacts_dir}" ]]; then
+  if [[ ! -d "${iree_vector_add_guest_artifacts_dir}" ]]; then
+    echo "QBOX_IREE_VECTOR_ADD_GUEST_ARTIFACTS_DIR is not a directory: ${iree_vector_add_guest_artifacts_dir}" >&2
+    exit 1
+  fi
+
+  install -d "${target_dir}/opt/qbox/iree/vector-add"
+  cp -a "${iree_vector_add_guest_artifacts_dir}/." "${target_dir}/opt/qbox/iree/vector-add/"
+  cat > "${target_dir}/opt/qbox/iree/vector-add/README" <<'MARKER'
+This image contains optional Apollo QBox IREE vector-add guest artifacts.
+
+Run:
+
+  /opt/qbox/iree/vector-add/run_vector_add_hexagon_guest.sh
 MARKER
 fi

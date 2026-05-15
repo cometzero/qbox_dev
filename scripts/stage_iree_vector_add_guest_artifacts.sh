@@ -2,15 +2,15 @@
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-smoke_out=${QBOX_IREE_SMOKE_OUT:-"${repo_root}/build/verification/iree-tiny-cnn-host"}
-stage_dir=${QBOX_IREE_GUEST_STAGE_DIR:-"${repo_root}/build/iree-guest-artifacts/tiny-cnn"}
+smoke_out=${QBOX_IREE_VECTOR_ADD_SMOKE_OUT:-"${repo_root}/build/verification/iree-vector-add-host"}
+stage_dir=${QBOX_IREE_VECTOR_ADD_GUEST_STAGE_DIR:-"${repo_root}/build/iree-guest-artifacts/vector-add"}
 venv_dir=${QBOX_IREE_SMOKE_VENV:-"${repo_root}/build/iree-smoke-venv"}
 runtime_version=${QBOX_IREE_RUNTIME_VERSION:-3.11.0}
 wheel_dir=${QBOX_IREE_AARCH64_WHEEL_DIR:-"${repo_root}/build/iree-aarch64-wheel"}
 extract_dir=${QBOX_IREE_AARCH64_EXTRACT_DIR:-"${repo_root}/build/iree-aarch64-runtime-extract"}
 hexagon_tools_dir=${QBOX_APOLLO_HEXAGON_TOOLS_OUT:-"${repo_root}/build/apollo-hexagon-guest-tools"}
 
-"${repo_root}/scripts/run_iree_tiny_cnn_host_smoke.sh"
+"${repo_root}/scripts/run_iree_vector_add_host_smoke.sh"
 "${repo_root}/scripts/build_apollo_hexagon_guest_tools.sh"
 
 if [[ ! -x "${venv_dir}/bin/python" ]]; then
@@ -65,10 +65,10 @@ fi
 chmod 0755 "${runtime_bin}"
 
 required=(
-  "${smoke_out}/tiny_cnn.onnx"
-  "${smoke_out}/tiny_cnn.mlir"
-  "${smoke_out}/tiny_cnn_cpu.vmfb"
-  "${smoke_out}/tiny_cnn_aarch64.vmfb"
+  "${smoke_out}/vector_add.onnx"
+  "${smoke_out}/vector_add.mlir"
+  "${smoke_out}/vector_add_cpu.vmfb"
+  "${smoke_out}/vector_add_aarch64.vmfb"
   "${smoke_out}/reference.json"
   "${smoke_out}/report.json"
 )
@@ -88,16 +88,16 @@ install -m 0755 "${hexagon_tools_dir}/bin/apollo-iree-hexagon-runner" \
   "${stage_dir}/bin/apollo-iree-hexagon-runner"
 install -m 0755 "${hexagon_tools_dir}/lib/libapollo_iree_hexagon_hal_plugin.so" \
   "${stage_dir}/lib/libapollo_iree_hexagon_hal_plugin.so"
-install -m 0644 "${smoke_out}/tiny_cnn.onnx" "${stage_dir}/tiny_cnn.onnx"
-install -m 0644 "${smoke_out}/tiny_cnn.mlir" "${stage_dir}/tiny_cnn.mlir"
-install -m 0644 "${smoke_out}/tiny_cnn_aarch64.vmfb" "${stage_dir}/tiny_cnn_aarch64.vmfb"
+install -m 0644 "${smoke_out}/vector_add.onnx" "${stage_dir}/vector_add.onnx"
+install -m 0644 "${smoke_out}/vector_add.mlir" "${stage_dir}/vector_add.mlir"
+install -m 0644 "${smoke_out}/vector_add_aarch64.vmfb" "${stage_dir}/vector_add_aarch64.vmfb"
 install -m 0644 "${smoke_out}/reference.json" "${stage_dir}/reference.json"
 install -m 0644 "${smoke_out}/report.json" "${stage_dir}/host-report.json"
 cat > "${stage_dir}/apollo_hexagon.vmfb.meta" <<'META'
-module=tiny_cnn_aarch64.vmfb
-entry=tiny_cnn_graph
+module=vector_add_aarch64.vmfb
+entry=vector_add_graph
 device=apollo-hexagon
-expected=1x1x2x2xf32=[[[54 63][90 99]]]
+expected=4xf32=11 22 33 44
 plugin=lib/libapollo_iree_hexagon_hal_plugin.so
 upstream_executable_plugin=iree_hal_executable_plugin_query
 queue=multi
@@ -150,19 +150,18 @@ exec "${real_runner}" "$@"
 GUEST
 chmod 0755 "${stage_dir}/bin/iree-run-module"
 
-cat > "${stage_dir}/run_tiny_cnn_guest.sh" <<'GUEST'
+cat > "${stage_dir}/run_vector_add_guest.sh" <<'GUEST'
 #!/bin/sh
 set -eu
 
 self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-module=${1:-"${self_dir}/tiny_cnn_aarch64.vmfb"}
+module=${1:-"${self_dir}/vector_add_aarch64.vmfb"}
 runner=${IREE_RUN_MODULE:-"${self_dir}/bin/iree-run-module"}
 if [ ! -x "${runner}" ]; then
   runner=$(command -v iree-run-module || true)
 fi
 if [ -z "${runner}" ] || [ ! -x "${runner}" ]; then
   echo "iree-run-module is not installed in this Buildroot image." >&2
-  echo "The VMFB and reference fixture are staged; add an AArch64 IREE runtime package next." >&2
   exit 127
 fi
 
@@ -170,12 +169,13 @@ exec "${runner}" \
   --executable_plugin="${self_dir}/lib/libapollo_iree_hexagon_hal_plugin.so" \
   --module="${module}" \
   --device=local-task \
-  --function=tiny_cnn_graph \
-  --input='1x1x4x4xf32=[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16]'
+  --function=vector_add_graph \
+  --input='4xf32=[1 2 3 4]' \
+  --input='4xf32=[10 20 30 40]'
 GUEST
-chmod 0755 "${stage_dir}/run_tiny_cnn_guest.sh"
+chmod 0755 "${stage_dir}/run_vector_add_guest.sh"
 
-cat > "${stage_dir}/run_tiny_cnn_hexagon_guest.sh" <<'GUEST'
+cat > "${stage_dir}/run_vector_add_hexagon_guest.sh" <<'GUEST'
 #!/bin/sh
 set -eu
 
@@ -190,12 +190,13 @@ exec "${runner}" \
   --device=apollo-hexagon \
   --metadata="${self_dir}/apollo_hexagon.vmfb.meta" \
   --executable_plugin="${self_dir}/lib/libapollo_iree_hexagon_hal_plugin.so" \
-  --module="${self_dir}/tiny_cnn_aarch64.vmfb" \
-  --function=tiny_cnn_graph \
-  --input='1x1x4x4xf32=[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16]' \
+  --module="${self_dir}/vector_add_aarch64.vmfb" \
+  --function=vector_add_graph \
+  --input='4xf32=[1 2 3 4]' \
+  --input='4xf32=[10 20 30 40]' \
   "$@"
 GUEST
-chmod 0755 "${stage_dir}/run_tiny_cnn_hexagon_guest.sh"
+chmod 0755 "${stage_dir}/run_vector_add_hexagon_guest.sh"
 
 "${venv_dir}/bin/python" - "${stage_dir}" "${runtime_version}" <<'PY'
 from pathlib import Path
@@ -204,48 +205,48 @@ import subprocess
 import sys
 stage = Path(sys.argv[1])
 runtime_version = sys.argv[2]
-runner = stage / 'bin' / 'iree-run-module.real'
+runner = stage / "bin" / "iree-run-module.real"
 try:
-    runner_file = subprocess.check_output(['file', str(runner)], text=True).strip()
+    runner_file = subprocess.check_output(["file", str(runner)], text=True).strip()
 except Exception as exc:
     runner_file = repr(exc)
 manifest = {
-    'name': 'apollo-qbox-iree-tiny-cnn-guest-artifacts',
-    'status': 'staged',
-    'target': 'aarch64-unknown-linux-gnu llvm-cpu local-task',
-    'guest_install_path': '/opt/qbox/iree/tiny-cnn',
-    'expected_output': '1x1x2x2xf32=[[[54 63][90 99]]]',
-    'runtime': {
-        'source': 'PyPI iree-base-runtime manylinux aarch64 wheel',
-        'version': runtime_version,
-        'runner': 'bin/iree-run-module',
-        'real_runner': 'bin/iree-run-module.real',
-        'file': runner_file,
+    "name": "apollo-qbox-iree-vector-add-guest-artifacts",
+    "status": "staged",
+    "target": "aarch64-unknown-linux-gnu llvm-cpu local-task",
+    "guest_install_path": "/opt/qbox/iree/vector-add",
+    "expected_output": "4xf32=11 22 33 44",
+    "runtime": {
+        "source": "PyPI iree-base-runtime manylinux aarch64 wheel",
+        "version": runtime_version,
+        "runner": "bin/iree-run-module",
+        "real_runner": "bin/iree-run-module.real",
+        "file": runner_file,
     },
-    'hexagon_offload': {
-        'registry_frontend': 'bin/apollo-iree-run-module',
-        'iree_run_module_dispatch': 'bin/iree-run-module --device=apollo-hexagon',
-        'runner': 'bin/apollo-iree-hexagon-runner',
-        'plugin': 'lib/libapollo_iree_hexagon_hal_plugin.so',
-        'upstream_executable_plugin_export': 'iree_hal_executable_plugin_query',
-        'device': '/dev/apollo-hexagon',
-        'script': 'run_tiny_cnn_hexagon_guest.sh',
-        'metadata': 'apollo_hexagon.vmfb.meta',
-        'queue': 'multi',
-        'command_buffer': 'fixed',
-        'fence': 'async-irq-poll',
-        'dma_stress_bytes': 131072,
-        'dma_stress_segments': 8,
+    "hexagon_offload": {
+        "registry_frontend": "bin/apollo-iree-run-module",
+        "iree_run_module_dispatch": "bin/iree-run-module --device=apollo-hexagon",
+        "runner": "bin/apollo-iree-hexagon-runner",
+        "plugin": "lib/libapollo_iree_hexagon_hal_plugin.so",
+        "upstream_executable_plugin_export": "iree_hal_executable_plugin_query",
+        "device": "/dev/apollo-hexagon",
+        "script": "run_vector_add_hexagon_guest.sh",
+        "metadata": "apollo_hexagon.vmfb.meta",
+        "queue": "multi",
+        "command_buffer": "fixed",
+        "fence": "async-irq-poll",
     },
-    'files': {str(p.relative_to(stage)): p.stat().st_size for p in sorted(stage.rglob('*')) if p.is_file()},
-    'next_requirement': 'Run run_tiny_cnn_guest.sh for A710 CPU or run_tiny_cnn_hexagon_guest.sh for Apollo Hexagon offload in the QBox guest.',
+    "files": {str(p.relative_to(stage)): p.stat().st_size
+              for p in sorted(stage.rglob("*")) if p.is_file()},
+    "next_requirement": "Run run_vector_add_hexagon_guest.sh in the QBox guest.",
 }
-(stage / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+(stage / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n",
+                                      encoding="utf-8")
 print(json.dumps(manifest, indent=2))
 PY
 
 cat <<EOF
-Staged IREE tiny-CNN guest artifacts: ${stage_dir}
+Staged IREE vector-add guest artifacts: ${stage_dir}
 To include them in the next Buildroot rootfs build, run:
-  QBOX_IREE_GUEST_ARTIFACTS_DIR='${stage_dir}' ./scripts/build_qbox_buildroot_arm64.sh
+  QBOX_IREE_VECTOR_ADD_GUEST_ARTIFACTS_DIR='${stage_dir}' ./scripts/build_qbox_buildroot_arm64.sh
 EOF

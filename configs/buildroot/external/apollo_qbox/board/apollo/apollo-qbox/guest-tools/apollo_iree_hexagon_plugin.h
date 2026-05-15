@@ -23,6 +23,10 @@ struct apollo_iree_hexagon_plugin_v1 {
 				struct apollo_hexagon_command_buffer *cmd,
 				struct apollo_hexagon_fence *fence,
 				char *error, size_t error_len);
+	int (*queue_submit_vadd)(struct apollo_hexagon_queue *queue,
+				 struct apollo_hexagon_vadd_command_buffer *cmd,
+				 struct apollo_hexagon_fence *fence,
+				 char *error, size_t error_len);
 	int (*queue_submit_dma_stress)(struct apollo_hexagon_queue *queue,
 				       uint32_t bytes, uint32_t seed,
 				       uint32_t *checksum,

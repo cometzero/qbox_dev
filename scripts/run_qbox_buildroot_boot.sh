@@ -160,6 +160,7 @@ Log file: ${log_path}
 Timeout: ${timeout_msg}
 Network: ${QBOX_BOOT_NETDEV_STR}
 At the Buildroot login prompt: user=root, no password.
+After boot, SSH is forwarded by default: root@127.0.0.1:${default_hostfwd_ports[0]} with an empty password.
 Return to the host shell with: Ctrl-C.
 Inside the guest, exit or Ctrl-D only logs out; QBox keeps running.
 If the terminal is garbled after a forced kill, run: stty sane

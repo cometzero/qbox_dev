@@ -190,6 +190,34 @@ int apollo_hexagon_queue_submit_cnn(struct apollo_hexagon_queue *queue,
 	return 0;
 }
 
+int apollo_hexagon_queue_submit_vadd(struct apollo_hexagon_queue *queue,
+				     struct apollo_hexagon_vadd_command_buffer *cmd,
+				     struct apollo_hexagon_fence *fence,
+				     char *error, size_t error_len)
+{
+	struct apollo_hexagon_vadd_job job;
+	int ret;
+
+	memset(&job, 0, sizeof(job));
+	memcpy(job.lhs, cmd->lhs, sizeof(job.lhs));
+	memcpy(job.rhs, cmd->rhs, sizeof(job.rhs));
+	job.queue_id = queue->queue_id;
+	ret = ioctl(queue->fd, APOLLO_HEXAGON_IOC_SUBMIT_VADD, &job);
+	if (ret < 0) {
+		set_error(error, error_len, "APOLLO_HEXAGON_IOC_SUBMIT_VADD failed",
+			  NULL);
+		return -errno;
+	}
+
+	memcpy(cmd->output, job.output, sizeof(cmd->output));
+	cmd->status = job.status;
+	fence->status = job.status;
+	fence->signaled = 1;
+	fence->queue_id = job.queue_id;
+	fence->fence_seq = job.fence_seq;
+	return 0;
+}
+
 int apollo_hexagon_queue_submit_dma_stress(struct apollo_hexagon_queue *queue,
 					   uint32_t bytes, uint32_t seed,
 					   uint32_t *checksum,
