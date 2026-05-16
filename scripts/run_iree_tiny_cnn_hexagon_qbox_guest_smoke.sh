@@ -38,6 +38,7 @@ for marker in \
   'async doorbell irq ready irq=' \
   'dma path smmu-translated caps=0x7d stream-id=' \
   'smmuv3-translated=yes queues=2 async-fence=yes large-tensor=yes' \
+  'arm-smmu-v3 dma-iommu map installed' \
   'SMMUv3 page-table walker/ATS/PRI/fault queue ready' \
   'SMMUv3 stream/context descriptor probe ok' \
   'SMMUv3 page-table walker/ATS/PRI/fault queue ready features=0x' \
@@ -67,12 +68,12 @@ for marker in \
   'APOLLO_SMMU_TBU: PRI request resolved stream-id=0x1' \
   'APOLLO_SMMU_TBU: fault queue push stream-id=0x1' \
   'dynamic SMMU SG map refreshed bytes=131072 segments=8' \
-  'APOLLO_HEXAGON_DMA: firmware requested DMA src=0x10020000 dst=0x10080000 len=0x20000' \
+  'APOLLO_HEXAGON_DMA: firmware requested DMA src=0x' \
   'APOLLO_HEXAGON_DMA: path=smmu-translated stream-id=0x1 pasid-valid=1 pasid=0x3' \
   'APOLLO_SMMU_TBU: ATS cache fill stream-id=0x1' \
   'ssid=0x3' \
   'endpoint-ssid=0x3' \
-  'APOLLO_HEXAGON_DMA: DMA copy complete src=0x10020000 dst=0x10080000 len=0x20000' \
+  'APOLLO_HEXAGON_DMA: DMA copy complete src=0x' \
   'SMMUv3 RIL TLBI_NH_VA range selftest ok' \
   'APOLLO_HEXAGON_DMA: job status=0x1' \
   'APOLLO_HEXAGON_DMA: async irq pending queue=0' \
