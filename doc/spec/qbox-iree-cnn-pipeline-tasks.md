@@ -44,8 +44,8 @@ pipeline을 Apollo QBox 환경에 단계적으로 연결한다. 현재 기능 �
 | --- | --- | --- | --- | --- |
 | IREE-CNN-UPSTREAM-001 | 대기 | upstream IREE runtime + Buildroot package | Apollo Hexagon C HAL driver/plugin의 정식 runtime 등록 | local repo shim 없이 `iree-run-module`이 HAL device를 discover/open하고 upstream IREE 테스트가 통과 |
 | IREE-CNN-SMMU-001 | 진행(확장 필요) | QBox SMMUv3 model + Linux/IOMMU traces | 전체 Arm SMMUv3 register/descriptor/protocol compliance model | 모든 architected register, descriptor bitfield, event/PRI/fault queue, ATS/PRI transport, interrupt wiring test 통과 |
-| IREE-CNN-SMMU-002 | 완료(부분) | `apollo_smmu_tbu`, `apollo-hexagon-test.c` | shared SRAM 4-level table descriptor chain을 downstream TLM으로 fetch/decode하는 architectural descriptor probe | boot/probe log의 `SMMUv3 architectural descriptor probe ok`와 `architectural descriptor walk` marker |
-| IREE-CNN-SMMU-003 | 완료(확장 slice) | `apollo_smmu_tbu`, `apollo-hexagon-test.c` | STE/CD walk, architected ATS/PRI response accounting, invalid STE negative fault replay | boot/probe log의 `SMMUv3 stream/context descriptor probe ok`, `SMMUv3 negative fault replay ok`, `architected fault replay queued` marker |
+| IREE-CNN-SMMU-002 | 완료(부분) | `apollo_smmu_tbu`, `apollo-hexagon-selftest.c` | shared SRAM 4-level table descriptor chain을 downstream TLM으로 fetch/decode하는 architectural descriptor probe | boot/probe log의 `SMMUv3 architectural descriptor probe ok`와 `architectural descriptor walk` marker |
+| IREE-CNN-SMMU-003 | 완료(확장 slice) | `apollo_smmu_tbu`, `apollo-hexagon-selftest.c` | STE/CD walk, architected ATS/PRI response accounting, invalid STE negative fault replay | boot/probe log의 `SMMUv3 stream/context descriptor probe ok`, `SMMUv3 negative fault replay ok`, `architected fault replay queued` marker |
 | IREE-CNN-ASYNC-001 | 완료(기능 모델) | QBox DMA/UAPI/driver/firmware | 128KiB tensor, 8 segment SG DMA, 2 queue, async IRQ/fence register | booted guest Hexagon smoke에서 `bytes=131072 segments=8`, queue 0/1, async fence marker 확인 |
 
 ## Ultrapilot Task 분해

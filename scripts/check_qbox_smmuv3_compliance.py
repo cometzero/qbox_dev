@@ -104,7 +104,10 @@ def check_known_reference_failures(repo: Path, manifest: dict[str, Any]) -> list
 def check_platform_invariants(repo: Path) -> list[Result]:
     platform = read_text(repo / "sources/qbox/platforms/buildroot/conf_aarch64.lua")
     dts = read_text(repo / "configs/linux/apollo_soc.dts")
-    linux_driver = read_text(repo / "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c")
+    linux_driver_core = read_text(repo / "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c")
+    linux_driver_selftest = read_text(repo / "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c")
+    linux_driver_header = read_text(repo / "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.h")
+    linux_driver = linux_driver_core + "\n" + linux_driver_selftest + "\n" + linux_driver_header
     tbu = read_text(repo / "sources/qbox/systemc-components/apollo_smmu_tbu/include/apollo_smmu_tbu.h")
     arch_core = read_text(repo / "sources/qbox/systemc-components/apollo_smmu_tbu/include/apollo_smmu_arch_core.h")
     dma = read_text(repo / "sources/qbox/systemc-components/apollo_hexagon_dma/include/apollo_hexagon_dma.h")
@@ -115,11 +118,25 @@ def check_platform_invariants(repo: Path) -> list[Result]:
     iree_registry = read_text(guest_tools / "apollo_iree_hal_registry.c")
     iree_run_module = read_text(guest_tools / "apollo_iree_run_module.c")
     iree_stage = read_text(repo / "scripts/stage_iree_tiny_cnn_guest_artifacts.sh")
-    guest_smoke = read_text(repo / "scripts/run_iree_tiny_cnn_hexagon_qbox_guest_smoke.sh")
     results: list[Result] = []
 
     def add(name: str, ok: bool, detail: str) -> None:
         results.append(Result(name, "pass" if ok else "fail", detail))
+
+    def has_linux_define(name: str, value: str) -> bool:
+        pattern = rf"^#define\s+{re.escape(name)}\s+{re.escape(value)}$"
+        return re.search(pattern, linux_driver, re.MULTILINE) is not None
+
+    add(
+        "linux:hexagon-selftest-source-split",
+        "SMMUv3 architectural descriptor probe ok" not in linux_driver_core
+        and "SMMUv3 command invalidation selftest ok" not in linux_driver_core
+        and "SMMUv3 architectural descriptor probe ok" in linux_driver_selftest
+        and "SMMUv3 command invalidation selftest ok" in linux_driver_selftest
+        and "SMMUv3 RIL TLBI_NH_VA range selftest ok" in linux_driver_selftest
+        and "CONFIG_DRM_ACCEL_APOLLO_HEXAGON_SELFTEST" in linux_driver_header,
+        "Apollo Hexagon runtime driver keeps SMMUv3 bring-up selftests in apollo-hexagon-selftest.c",
+    )
 
     add("platform:smmuv3-base", "APOLLO_SMMUV3 = 0x1C200000" in platform, "QBox SMMUv3 base is 0x1C200000")
     add("platform:stream-id", "APOLLO_HEXAGON_STREAM_ID = 0x1" in platform, "Apollo Hexagon StreamID is 0x1")
@@ -339,8 +356,8 @@ def check_platform_invariants(repo: Path) -> list[Result]:
         and "MsiWritesAndAbortGerrorBitsFollowIrqSources" in tests
         and "CmdSyncMsiWriteAndAbortAreReported" in tests
         and "APOLLO_TBU_FEATURE_ARCH_IRQ_MSI_CFG" in linux_driver
-        and "APOLLO_SMMUV3_ARCH_IDR0\t\t0x098db7cb" in linux_driver
-        and "APOLLO_SMMUV3_STATUS\t\t0x0e0" in linux_driver,
+        and has_linux_define("APOLLO_SMMUV3_ARCH_IDR0", "0x098db7cb")
+        and has_linux_define("APOLLO_SMMUV3_STATUS", "0x0e0"),
         "Apollo TBU models architected MSI IRQ_CFG registers, CMD_SYNC MSI writes, and MSI abort GERROR bits with component and Linux probe gates",
     )
     add(
@@ -352,7 +369,7 @@ def check_platform_invariants(repo: Path) -> list[Result]:
         and "pri-resp-unsupported" in tbu
         and "atc-inv-unsupported" in tbu
         and "ArchitectedIdr0AdvertisesAtsPri" in tests
-        and "APOLLO_SMMUV3_ARCH_IDR0\t\t0x098db7cb" in linux_driver
+        and has_linux_define("APOLLO_SMMUV3_ARCH_IDR0", "0x098db7cb")
         and "SMMU-COMP-020/060 IDR0 ATS/PRI advertisement slice"
         in read_text(repo / "doc/verification/qbox-smmuv3-idr0-ats-pri-advertisement-verification-2026-05-11.md"),
         "Apollo TBU and Linux probe advertise IDR0.ATS/PRI for modeled ATC/PRI command support and keep unsupported-command CERROR gates explicit",
@@ -391,19 +408,20 @@ def check_platform_invariants(repo: Path) -> list[Result]:
         and "APOLLO_SMMUV3_ARCH_CMD_ATC_INV" in linux_driver
         and "APOLLO_SMMUV3_ARCH_CMD_TLBI_NH_ALL" in linux_driver
         and "SMMUv3 command invalidation selftest ok" in linux_driver,
-        "Apollo Linux probe drives guest-visible CMDQ ATC_INV/TLBI_NH_ALL invalidation and verifies the TBU invalidation counter",
+        "Optional Apollo Linux Hexagon selftest path drives guest-visible CMDQ ATC_INV/TLBI_NH_ALL invalidation and verifies the TBU invalidation counter",
     )
     add(
         "linux:ril-range-stress",
         "ARCH_IDR3_RIL = 1u << 10" in tbu
         and "ARCH_IDR3_MPAM | ARCH_IDR3_RIL" in tbu
+        and "CONFIG_DRM_ACCEL_APOLLO_HEXAGON_SELFTEST" in linux_driver
         and "APOLLO_SMMUV3_ARCH_IDR3_RIL" in linux_driver
         and "APOLLO_SMMUV3_ARCH_CMD_TLBI_NH_VA" in linux_driver
         and "apollo_hexagon_issue_ril_tlbi" in linux_driver
+        and "apollo_hexagon_run_selftests" in linux_driver
         and "APOLLO_SMMUV3_ARCH_CMDQ_RANGE_TG_4K" in linux_driver
-        and "SMMUv3 RIL TLBI_NH_VA range selftest ok" in linux_driver
-        and "SMMUv3 RIL TLBI_NH_VA range selftest ok" in guest_smoke,
-        "Apollo TBU advertises IDR3.RIL and the Linux guest DMA-stress path issues a TLBI_NH_VA range command through CMDQ after >64KB SG traffic, validating guest-visible range invalidation",
+        and "SMMUv3 RIL TLBI_NH_VA range selftest ok" in linux_driver,
+        "Apollo TBU advertises IDR3.RIL and the optional Linux Hexagon SMMUv3 selftest path can issue a TLBI_NH_VA range command through CMDQ after >64KB SG traffic",
     )
     add(
         "tbu:cr0-queue-enable-gates",
@@ -607,8 +625,8 @@ def check_platform_invariants(repo: Path) -> list[Result]:
         and "ARCH_S_IDR1_S_SIDSIZE = ARCH_IDR1_SIDSIZE" in tbu
         and "ArchitectedRegisterMmioSurface" in tests
         and "ARCH_IDR1_ATTR_PERMS_OVR" in tests
-        and "APOLLO_SMMUV3_ARCH_IDR0\t\t0x098db7cb" in linux_driver
-        and "APOLLO_SMMUV3_ARCH_IDR1\t\t0x0def7d08" in linux_driver
+        and has_linux_define("APOLLO_SMMUV3_ARCH_IDR0", "0x098db7cb")
+        and has_linux_define("APOLLO_SMMUV3_ARCH_IDR1", "0x0def7d08")
         and "SMMU-COMP-020/030/050/060 IDR1 discovery/limits slice"
         in read_text(repo / "doc/verification/qbox-smmuv3-idr1-discovery-limits-verification-2026-05-11.md"),
         "Apollo TBU advertises modeled IDR1 SID/SSID, queue-depth, attribute-override limits and keeps Secure IDR1 RES0 fields masked",
@@ -623,7 +641,7 @@ def check_platform_invariants(repo: Path) -> list[Result]:
         and "ARCH_IDR0 = ARCH_IDR0_S2P | ARCH_IDR0_S1P" in tbu
         and "ARCH_IDR0_TTF_AARCH64" in tests
         and "ARCH_IDR0_CD2L" in tests
-        and "APOLLO_SMMUV3_ARCH_IDR0\t\t0x098db7cb" in linux_driver
+        and has_linux_define("APOLLO_SMMUV3_ARCH_IDR0", "0x098db7cb")
         and "SMMU-COMP-020/030/040 IDR0 S1P/TTF/CD2L discovery slice"
         in read_text(repo / "doc/verification/qbox-smmuv3-idr0-stage-ttf-cd2l-verification-2026-05-11.md"),
         "Apollo TBU advertises stage-1/stage-2, AArch64 translation format, two-level stream tables, and two-level context descriptors to match modeled walkers",
@@ -638,7 +656,7 @@ def check_platform_invariants(repo: Path) -> list[Result]:
         and "constexpr uint16_t asid_b = 0x9234" in tests
         and "constexpr uint16_t vmid_a = 0x5678" in tests
         and "constexpr uint16_t vmid_b = 0xd678" in tests
-        and "APOLLO_SMMUV3_ARCH_IDR0\t\t0x098db7cb" in linux_driver
+        and has_linux_define("APOLLO_SMMUV3_ARCH_IDR0", "0x098db7cb")
         and "SMMU-COMP-020/040/060 IDR0 ASID16/VMID16 discovery slice"
         in read_text(repo / "doc/verification/qbox-smmuv3-idr0-asid16-vmid16-verification-2026-05-11.md"),
         "Apollo TBU advertises ASID16/VMID16 and validates high-bit ASID/VMID retention through tagged invalidation tests",
@@ -680,8 +698,8 @@ def check_platform_invariants(repo: Path) -> list[Result]:
         and "ARCH_IDR3_PTWNNC = 1u << 14" in tbu
         and "ARCH_AIDR_SMMUV3_3" in tests
         and "ARCH_IDR3_BBML_LEVEL_2" in tests
-        and "APOLLO_SMMUV3_ARCH_AIDR\t\t0x00000003" in linux_driver
-        and "APOLLO_SMMUV3_ARCH_IDR3\t\t0x00007794" in linux_driver
+        and has_linux_define("APOLLO_SMMUV3_ARCH_AIDR", "0x00000003")
+        and has_linux_define("APOLLO_SMMUV3_ARCH_IDR3", "0x00007794")
         and "SMMU-COMP-020/040/060 AIDR v3.3 and IDR3 mandatory discovery slice"
         in read_text(repo / "doc/verification/qbox-smmuv3-aidr-v33-idr3-mandatory-verification-2026-05-11.md"),
         "Apollo TBU reports an AIDR SMMUv3.3 discovery surface and the mandatory v3.2/v3.3 IDR3 HAD/XNX/FWB/STT/BBML/E0PD/PTWNNC bits required by the already-advertised MPAM/RIL/SEL2/ATSRECERR slices",
@@ -761,7 +779,7 @@ def check_platform_invariants(repo: Path) -> list[Result]:
         and "HTTU descriptor update" in tbu
         and "HttuStage1AccessAndDirtyUpdatesLeaf" in tests
         and "HttuStage2AccessAndDirtyUpdatesLeaf" in tests
-        and "APOLLO_SMMUV3_ARCH_IDR0\t\t0x098db7cb" in linux_driver
+        and has_linux_define("APOLLO_SMMUV3_ARCH_IDR0", "0x098db7cb")
         and "SMMU-COMP-040/050/060 HTTU AF/Dirty leaf-update slice"
         in read_text(repo / "doc/verification/qbox-smmuv3-httu-af-dirty-verification-2026-05-11.md"),
         "Apollo TBU advertises bounded IDR0.HTTU AF/Dirty support and updates stage-1 CD.HA/HD plus stage-2 STE.S2HA/S2HD leaf descriptors instead of raising access/permission faults",
@@ -778,7 +796,7 @@ def check_platform_invariants(repo: Path) -> list[Result]:
         and "HttuHaftStage1UpdatesTableAccessFlag" in tests
         and "HttuHaftStage2UpdatesTableAccessFlag" in tests
         and "ARCH_IDR0_HTTU_ACCESS_DIRTY_TABLE" in tests
-        and "APOLLO_SMMUV3_ARCH_IDR0\t\t0x098db7cb" in linux_driver
+        and has_linux_define("APOLLO_SMMUV3_ARCH_IDR0", "0x098db7cb")
         and "SMMU-COMP-040/050/060 HTTU HAFT table-descriptor slice"
         in read_text(repo / "doc/verification/qbox-smmuv3-httu-haft-verification-2026-05-11.md"),
         "Apollo TBU advertises IDR0.HTTU==0b11 and updates stage-1 CD.HAFT plus stage-2 STE.S2HAFT table-descriptor Access flags before descriptor-step evaluation",
@@ -800,7 +818,7 @@ def check_platform_invariants(repo: Path) -> list[Result]:
         "tbu:iidr-aidr-register-slots",
         "SMMUV3_IIDR = 0x018" in tbu
         and "SMMUV3_AIDR = 0x01c" in tbu
-        and "APOLLO_SMMUV3_AIDR\t\t0x01c" in linux_driver
+        and has_linux_define("APOLLO_SMMUV3_AIDR", "0x01c")
         and "ARCH_IIDR" in tbu
         and "ARCH_AIDR" in tbu
         and "ArchitectedRegisterMmioSurface" in tests
@@ -2010,7 +2028,7 @@ def check_platform_invariants(repo: Path) -> list[Result]:
         and "SMMUV3_MPAMIDR = 0x130" in tbu
         and "ARCH_MPAMIDR_PARTID_MAX = 31" in tbu
         and "MpamDiscoveryAdvertisesVmsPrerequisites" in tests
-        and "APOLLO_SMMUV3_ARCH_IDR3\t\t0x00007794" in linux_driver,
+        and has_linux_define("APOLLO_SMMUV3_ARCH_IDR3", "0x00007794"),
         "Apollo TBU and Linux probe advertise MPAM/VMS prerequisites coherently through IDR3.MPAM and SMMU_MPAMIDR while leaving IDR3.DPT clear",
     )
     add(

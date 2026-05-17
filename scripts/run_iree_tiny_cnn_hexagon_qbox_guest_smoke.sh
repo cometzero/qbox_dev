@@ -39,34 +39,9 @@ for marker in \
   'dma path smmu-translated caps=0x7d stream-id=' \
   'smmuv3-translated=yes queues=2 async-fence=yes large-tensor=yes' \
   'arm-smmu-v3 dma-iommu map installed' \
-  'SMMUv3 page-table walker/ATS/PRI/fault queue ready' \
-  'SMMUv3 stream/context descriptor probe ok' \
-  'SMMUv3 page-table walker/ATS/PRI/fault queue ready features=0x' \
-  'SMMUv3 architected queue' \
-  'SMMUv3 command invalidation selftest ok' \
-  'SMMUv3 DPTI unsupported command selftest ok' \
-  'cerror=1' \
-  'SMMUv3 REC_CFG_ATS translation request selftest ok' \
-  'SMMUv3 ATSCHK/EATS translation request selftest ok' \
-  'APOLLO_SMMU_TBU: architected CMDQ invalidation op=ATC_INV' \
-  'APOLLO_SMMU_TBU: architected CMDQ invalidation op=TLBI_NH_ALL' \
   'APOLLO_SMMU_TBU: map stream-id=0x1' \
   'APOLLO_SMMU_TBU: unmap stream-id=0x1' \
-  'APOLLO_SMMU_TBU: architectural stream table walk stream-id=0x1' \
-  'APOLLO_SMMU_TBU: architectural context descriptor walk stream-id=0x1' \
-  'APOLLO_SMMU_TBU: architectural table walk stream-id=0x1 stage=1 granule=0x1000 level=0' \
-  'APOLLO_SMMU_TBU: architectural table walk stream-id=0x1 stage=1 granule=0x1000 level=1' \
-  'APOLLO_SMMU_TBU: architectural table walk stream-id=0x1 stage=1 granule=0x1000 level=2' \
-  'APOLLO_SMMU_TBU: architectural descriptor walk stream-id=0x1' \
-  'APOLLO_SMMU_TBU: architectural descriptor walk stream-id=0x1 stage=1 granule=0x1000 start-level=0' \
-  'levels=4 desc-pa=' \
-  'APOLLO_SMMU_TBU: architected ATS translation response stream-id=0x1' \
-  'APOLLO_SMMU_TBU: architected PRI response stream-id=0x1' \
-  'APOLLO_SMMU_TBU: architected fault replay queued stream-id=0x1' \
-  'APOLLO_SMMU_TBU: page-table walk stream-id=0x1' \
   'APOLLO_SMMU_TBU: ATS cache fill stream-id=0x1' \
-  'APOLLO_SMMU_TBU: PRI request resolved stream-id=0x1' \
-  'APOLLO_SMMU_TBU: fault queue push stream-id=0x1' \
   'dynamic SMMU SG map refreshed bytes=131072 segments=8' \
   'IREE Apollo Hexagon HAL: drm-accel device=/dev/accel/accel' \
   'APOLLO_HEXAGON_DMA: firmware requested DMA src=0x' \
@@ -75,7 +50,6 @@ for marker in \
   'ssid=0x3' \
   'endpoint-ssid=0x3' \
   'APOLLO_HEXAGON_DMA: DMA copy complete src=0x' \
-  'SMMUv3 RIL TLBI_NH_VA range selftest ok' \
   'APOLLO_HEXAGON_DMA: job status=0x1' \
   'APOLLO_HEXAGON_DMA: async irq pending queue=0' \
   'APOLLO_HEXAGON_DMA: async irq pending queue=1' \

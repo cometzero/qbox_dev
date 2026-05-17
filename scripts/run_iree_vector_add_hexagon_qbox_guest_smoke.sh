@@ -36,7 +36,6 @@ for marker in \
   'userspace submit ABI ready at /dev/accel/accel*' \
   'dma path smmu-translated caps=0x7d stream-id=' \
   'arm-smmu-v3 dma-iommu map installed' \
-  'SMMUv3 page-table walker/ATS/PRI/fault queue ready' \
   'APOLLO_SMMU_TBU: map stream-id=0x1' \
   'APOLLO_HEXAGON_DMA: path=smmu-translated stream-id=0x1' \
   'IREE Apollo Hexagon HAL: drm-accel device=/dev/accel/accel' \

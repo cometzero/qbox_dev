@@ -241,7 +241,7 @@ compliance without passing model/unit, platform/DTS/IRQ, and runtime evidence.
           "description": "Component test verifies Secure GERROR IRQ/MSI uses S_GERROR_IRQ_CFG, reports failed Secure GERROR MSI writes through S_GERROR.MSI_GERROR_ABORT, and preserves Non-secure GERROR isolation."
         },
         {
-          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c",
+          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
           "pattern": "SMMUv3 architected queue register selftest",
           "description": "Linux probe configures guest-visible CMDQ/EVENTQ/PRIQ rings and verifies queue side effects through MMIO."
         },
@@ -281,7 +281,7 @@ compliance without passing model/unit, platform/DTS/IRQ, and runtime evidence.
           "description": "Component test covers ASID/VMID-tagged TLBI and SSID-scoped ATC_INV invalidation behavior."
         },
         {
-          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c",
+          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
           "pattern": "SMMUv3 command invalidation selftest ok",
           "description": "Linux probe drives guest-visible CMDQ ATC_INV/TLBI_NH_ALL and verifies the invalidation counter."
         },
@@ -296,7 +296,7 @@ compliance without passing model/unit, platform/DTS/IRQ, and runtime evidence.
           "description": "Component test proves CMDQ/EVENTQ/PRIQ do not advance while CR0 gates are disabled and do advance after SMMUEN plus queue enable bits are set."
         },
         {
-          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c",
+          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
           "pattern": "APOLLO_SMMUV3_CR0_ENABLE_QUEUES",
           "description": "Linux probe writes spec-position CR0 SMMUEN/PRIQEN/EVENTQEN/CMDQEN/ATSCHK before queue use."
         },
@@ -361,12 +361,12 @@ compliance without passing model/unit, platform/DTS/IRQ, and runtime evidence.
           "description": "Component test covers multiple failed CMD_ATC_INV completions coalescing into one CMD_SYNC CERROR and pausing the queue until software skips the failing sync."
         },
         {
-          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c",
+          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
           "pattern": "SMMUv3 DPTI unsupported command selftest ok",
           "description": "Linux probe drives CMD_DPTI_ALL and validates guest-visible CMDQ_CONS.CERROR_ILL plus GERROR status because IDR3.DPT=0."
         },
         {
-          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c",
+          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
           "pattern": "APOLLO_SMMUV3_ARCH_CERROR_ILL",
           "description": "Linux probe decodes and checks architected CMDQ_CONS.CERROR_ILL."
         },
@@ -426,7 +426,7 @@ compliance without passing model/unit, platform/DTS/IRQ, and runtime evidence.
           "description": "Component test verifies IDR3.MPAM, IDR3.DPT clear, MPAMIDR PARTID_MAX, and VMS feature bits."
         },
         {
-          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c",
+          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
           "pattern": "APOLLO_SMMUV3_ARCH_IDR3\t\t0x00007794",
           "description": "Linux guest probe expects the updated IDR3.MPAM discovery value."
         },
@@ -661,17 +661,17 @@ compliance without passing model/unit, platform/DTS/IRQ, and runtime evidence.
           "description": "Apollo TBU advertises the architectural IDR3.RIL capability bit for modeled range invalidation."
         },
         {
-          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c",
+          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
           "pattern": "APOLLO_SMMUV3_ARCH_IDR3_RIL",
           "description": "Linux guest probe expects IDR3.RIL to be set alongside the modeled MPAM bit."
         },
         {
-          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c",
+          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
           "pattern": "apollo_hexagon_issue_ril_tlbi",
           "description": "Linux guest DMA stress issues a CMDQ TLBI_NH_VA range command using NUM/TG fields after SG DMA cache population."
         },
         {
-          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c",
+          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
           "pattern": "SMMUv3 RIL TLBI_NH_VA range selftest ok",
           "description": "Linux guest selftest reports the RIL TLBI_NH_VA range command and modeled invalidation count."
         },
@@ -1432,7 +1432,7 @@ compliance without passing model/unit, platform/DTS/IRQ, and runtime evidence.
           "description": "Component test verifies two-level STRTAB L1/L2 STE selection."
         },
         {
-          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c",
+          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
           "pattern": "SMMUv3 stream/context descriptor probe ok",
           "description": "Existing Linux probe still stages STE/CD descriptors and checks the compatibility result."
         },
@@ -1552,7 +1552,7 @@ compliance without passing model/unit, platform/DTS/IRQ, and runtime evidence.
           "description": "Component test verifies endpoint-provided SSID tags ATS entries and EVENTQ SSV/SubstreamID fields."
         },
         {
-          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c",
+          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
           "pattern": "APOLLO_SMMUV3_ARCH_CMD_TLBI_NH_ALL",
           "description": "Linux probe stages a guest-visible TLBI_NH_ALL command through the SMMUv3 CMDQ model."
         },
@@ -2133,7 +2133,7 @@ compliance without passing model/unit, platform/DTS/IRQ, and runtime evidence.
           "description": "Component vector verifies a nested stage-1 TT descriptor fetch S2 translation fault records CLASS=TT."
         },
         {
-          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c",
+          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
           "pattern": "SMMUv3 architectural descriptor probe ok 4-level",
           "description": "Linux probe still checks the staged 4-level compatibility descriptor path."
         },
@@ -2289,7 +2289,7 @@ compliance without passing model/unit, platform/DTS/IRQ, and runtime evidence.
           "description": "Component test covers full EVENTQ stall buffering without setting OVFLG and redrive when software advances EVENTQ_CONS."
         },
         {
-          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c",
+          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
           "pattern": "SMMUv3 negative fault replay ok",
           "description": "Linux probe still validates the compatibility invalid-STE replay marker."
         },
@@ -3310,7 +3310,7 @@ compliance without passing model/unit, platform/DTS/IRQ, and runtime evidence.
           "description": "Component test covers split-stage EATS with ATSCHK clear, EATS disabled, and Full ATS success."
         },
         {
-          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c",
+          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
           "pattern": "SMMUv3 ATSCHK/EATS translation request selftest ok",
           "description": "Linux probe validates the ATSCHK/EATS Translation Request gate at boot."
         },
@@ -3325,7 +3325,7 @@ compliance without passing model/unit, platform/DTS/IRQ, and runtime evidence.
           "description": "Component test covers REC_CFG_ATS suppression/recording and ATS bad-StreamID RECINVSID interaction."
         },
         {
-          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c",
+          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
           "pattern": "SMMUv3 REC_CFG_ATS translation request selftest ok",
           "description": "Linux probe validates REC_CFG_ATS-gated recording for SMMUEN-disabled ATS Translation Requests."
         },
@@ -3826,7 +3826,7 @@ compliance without passing model/unit, platform/DTS/IRQ, and runtime evidence.
           "description": "Apollo TBU exposes raw GERROR toggle state through the architected GERROR register."
         },
         {
-          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c",
+          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
           "pattern": "apollo_smmuv3_gerror_active",
           "description": "Linux probe computes active global errors as GERROR xor GERRORN while reading the raw GERROR register."
         },
@@ -4107,7 +4107,7 @@ compliance without passing model/unit, platform/DTS/IRQ, and runtime evidence.
           "description": "Component test verifies endpoint SSID tags ATS entries and EVENTQ records."
         },
         {
-          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c",
+          "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
           "pattern": "APOLLO_SMMUV3_ARCH_CMD_ATC_INV",
           "description": "Linux probe stages a guest-visible ATC_INV command for the Hexagon StreamID."
         },
