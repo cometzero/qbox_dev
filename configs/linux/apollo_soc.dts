@@ -168,6 +168,17 @@
 		status = "okay";
 	};
 
+	iommu-runtime-test@1c320000 {
+		compatible = "apollo,iommu-runtime-test";
+		reg = <0x00 0x1c320000 0x00 0x3000>;
+		iommus = <&smmu 0x3>;
+		apollo,dma-path = "smmu-translated";
+		apollo,smmu-stream-id = <0x3>;
+		dma-coherent;
+		memory-region = <&shared_sram>;
+		status = "okay";
+	};
+
 	pmu {
 		compatible = "arm,armv8-pmuv3";
 		interrupts = <0x1 0x7 0x4>;
