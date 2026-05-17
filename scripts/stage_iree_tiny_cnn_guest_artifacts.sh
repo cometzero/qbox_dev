@@ -228,7 +228,7 @@ manifest = {
         'runner': 'bin/apollo-iree-hexagon-runner',
         'plugin': 'lib/libapollo_iree_hexagon_hal_plugin.so',
         'upstream_executable_plugin_export': 'iree_hal_executable_plugin_query',
-        'device': '/dev/apollo-hexagon',
+        'device': '/dev/accel/accel0',
         'script': 'run_tiny_cnn_hexagon_guest.sh',
         'metadata': 'apollo_hexagon.vmfb.meta',
         'queue': 'multi',

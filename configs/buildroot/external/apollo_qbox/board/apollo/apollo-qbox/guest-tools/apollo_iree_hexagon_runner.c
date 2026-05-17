@@ -165,9 +165,6 @@ int main(int argc, char **argv)
 	int ret;
 	int i;
 
-	if (!device || !device[0])
-		device = "/dev/apollo-hexagon";
-
 	for (i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "--metadata") == 0 && i + 1 < argc) {
 			metadata = argv[++i];
@@ -215,6 +212,8 @@ int main(int argc, char **argv)
 	}
 
 	printf("IREE Apollo Hexagon HAL: device=apollo-hexagon\n");
+	printf("IREE Apollo Hexagon HAL: drm-accel device=%s\n",
+	       queue.device);
 	printf("IREE Apollo Hexagon HAL: executable=%s entry=%s bytes=%zu\n",
 	       exe.module_path, exe.entry_point, exe.module_size);
 	printf("IREE Apollo Hexagon HAL: dynamic C HAL plugin=%s name=%s api=%u\n",
@@ -223,7 +222,8 @@ int main(int argc, char **argv)
 	if (binding.dynamic)
 		printf("IREE Apollo Hexagon HAL: upstream executable_plugin export=%s available\n",
 		       "iree_hal_executable_plugin_query");
-	printf("IREE Apollo Hexagon HAL: queues=2 command-buffer=fixed fence=async-irq-poll\n");
+	printf("IREE Apollo Hexagon HAL: queues=%u command-buffer=fixed fence=async-irq-poll\n",
+	       queue.queue_count);
 
 	if (!skip_stress) {
 		memset(&fence, 0, sizeof(fence));

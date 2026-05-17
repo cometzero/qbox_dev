@@ -41,6 +41,7 @@ struct apollo_hexagon_fence {
 
 struct apollo_hexagon_queue {
 	int fd;
+	char device_path[64];
 	const char *device;
 	uint32_t queue_id;
 	uint32_t queue_count;

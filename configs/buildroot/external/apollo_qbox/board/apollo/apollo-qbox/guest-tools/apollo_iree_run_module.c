@@ -75,8 +75,6 @@ static int parse_args(int argc, char **argv, struct options *opts)
 
 	memset(opts, 0, sizeof(*opts));
 	opts->device_path = getenv("APOLLO_HEXAGON_DEV");
-	if (!opts->device_path || !opts->device_path[0])
-		opts->device_path = "/dev/apollo-hexagon";
 
 	for (i = 1; i < argc; i++) {
 		int matched;
@@ -197,6 +195,8 @@ int main(int argc, char **argv)
 	}
 
 	printf("IREE Apollo Hexagon HAL: device=%s\n", device->name);
+	printf("IREE Apollo Hexagon HAL: drm-accel device=%s\n",
+	       queue.device);
 	printf("IREE Apollo Hexagon HAL: upstream-style HAL registry device=%s driver=%s\n",
 	       device->name, device->ops->name);
 	printf("IREE Apollo Hexagon HAL: dynamically registered C HAL plugin=%s driver=%s api=%u\n",
@@ -205,7 +205,8 @@ int main(int argc, char **argv)
 	       exe.module_path, exe.entry_point, exe.module_size);
 	printf("IREE Apollo Hexagon HAL: executable_plugin compatibility export=%s staged\n",
 	       "iree_hal_executable_plugin_query");
-	printf("IREE Apollo Hexagon HAL: queues=2 command-buffer=fixed fence=async-irq-poll\n");
+	printf("IREE Apollo Hexagon HAL: queues=%u command-buffer=fixed fence=async-irq-poll\n",
+	       queue.queue_count);
 	(void)opts.input;
 
 	if (!opts.skip_stress) {

@@ -104,7 +104,7 @@ def check_known_reference_failures(repo: Path, manifest: dict[str, Any]) -> list
 def check_platform_invariants(repo: Path) -> list[Result]:
     platform = read_text(repo / "sources/qbox/platforms/buildroot/conf_aarch64.lua")
     dts = read_text(repo / "configs/linux/apollo_soc.dts")
-    linux_driver = read_text(repo / "sources/linux/drivers/soc/apollo/apollo-hexagon-test.c")
+    linux_driver = read_text(repo / "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon.c")
     tbu = read_text(repo / "sources/qbox/systemc-components/apollo_smmu_tbu/include/apollo_smmu_tbu.h")
     arch_core = read_text(repo / "sources/qbox/systemc-components/apollo_smmu_tbu/include/apollo_smmu_arch_core.h")
     dma = read_text(repo / "sources/qbox/systemc-components/apollo_hexagon_dma/include/apollo_hexagon_dma.h")

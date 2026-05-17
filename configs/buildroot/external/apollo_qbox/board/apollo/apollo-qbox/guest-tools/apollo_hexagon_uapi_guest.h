@@ -13,7 +13,20 @@
 #define APOLLO_HEXAGON_DMA_STRESS_BYTES 131072
 #define APOLLO_HEXAGON_DMA_STRESS_SEGMENTS 8
 
-struct apollo_hexagon_cnn_job {
+#define DRM_IOCTL_BASE 'd'
+#define DRM_COMMAND_BASE 0x40
+#define DRM_IOWR(nr, type) _IOWR(DRM_IOCTL_BASE, nr, type)
+
+struct drm_apollo_hexagon_query {
+	uint32_t stream_id;
+	uint32_t queue_count;
+	uint32_t capabilities;
+	uint32_t dma_path;
+	uint32_t primary_endpoint;
+	uint32_t pad;
+};
+
+struct drm_apollo_hexagon_cnn_job {
 	uint32_t input[APOLLO_HEXAGON_CNN_INPUT_WORDS];
 	uint32_t output[APOLLO_HEXAGON_CNN_OUTPUT_WORDS];
 	uint32_t status;
@@ -22,7 +35,7 @@ struct apollo_hexagon_cnn_job {
 	uint32_t fence_seq;
 };
 
-struct apollo_hexagon_vadd_job {
+struct drm_apollo_hexagon_vadd_job {
 	uint32_t lhs[APOLLO_HEXAGON_VADD_WORDS];
 	uint32_t rhs[APOLLO_HEXAGON_VADD_WORDS];
 	uint32_t output[APOLLO_HEXAGON_VADD_OUTPUT_WORDS];
@@ -32,7 +45,7 @@ struct apollo_hexagon_vadd_job {
 	uint32_t fence_seq;
 };
 
-struct apollo_hexagon_dma_stress_job {
+struct drm_apollo_hexagon_dma_stress_job {
 	uint32_t bytes;
 	uint32_t segment_bytes;
 	uint32_t seed;
@@ -43,13 +56,24 @@ struct apollo_hexagon_dma_stress_job {
 	uint32_t fence_seq;
 };
 
-#define APOLLO_HEXAGON_IOC_MAGIC 'H'
-#define APOLLO_HEXAGON_IOC_SUBMIT_CNN \
-	_IOWR(APOLLO_HEXAGON_IOC_MAGIC, 0x01, struct apollo_hexagon_cnn_job)
-#define APOLLO_HEXAGON_IOC_DMA_STRESS \
-	_IOWR(APOLLO_HEXAGON_IOC_MAGIC, 0x02, \
-	      struct apollo_hexagon_dma_stress_job)
-#define APOLLO_HEXAGON_IOC_SUBMIT_VADD \
-	_IOWR(APOLLO_HEXAGON_IOC_MAGIC, 0x03, struct apollo_hexagon_vadd_job)
+enum drm_apollo_hexagon_ioctl_id {
+	DRM_APOLLO_HEXAGON_QUERY = 0,
+	DRM_APOLLO_HEXAGON_SUBMIT_CNN,
+	DRM_APOLLO_HEXAGON_SUBMIT_VADD,
+	DRM_APOLLO_HEXAGON_DMA_STRESS,
+};
+
+#define DRM_IOCTL_APOLLO_HEXAGON_QUERY \
+	DRM_IOWR(DRM_COMMAND_BASE + DRM_APOLLO_HEXAGON_QUERY, \
+		 struct drm_apollo_hexagon_query)
+#define DRM_IOCTL_APOLLO_HEXAGON_SUBMIT_CNN \
+	DRM_IOWR(DRM_COMMAND_BASE + DRM_APOLLO_HEXAGON_SUBMIT_CNN, \
+		 struct drm_apollo_hexagon_cnn_job)
+#define DRM_IOCTL_APOLLO_HEXAGON_SUBMIT_VADD \
+	DRM_IOWR(DRM_COMMAND_BASE + DRM_APOLLO_HEXAGON_SUBMIT_VADD, \
+		 struct drm_apollo_hexagon_vadd_job)
+#define DRM_IOCTL_APOLLO_HEXAGON_DMA_STRESS \
+	DRM_IOWR(DRM_COMMAND_BASE + DRM_APOLLO_HEXAGON_DMA_STRESS, \
+		 struct drm_apollo_hexagon_dma_stress_job)
 
 #endif /* APOLLO_HEXAGON_UAPI_GUEST_H */

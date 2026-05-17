@@ -4,10 +4,13 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#define APOLLO_HEXAGON_ACCEL_SCAN_MAX 256
 
 static void set_error(char *error, size_t error_len, const char *fmt,
 		      const char *arg)
@@ -138,15 +141,78 @@ int apollo_hexagon_load_executable(const char *metadata_path,
 int apollo_hexagon_queue_open(struct apollo_hexagon_queue *queue,
 			      const char *device, char *error, size_t error_len)
 {
+	struct drm_apollo_hexagon_query query;
+	char candidate[sizeof(queue->device_path)];
+	const char *selected = device;
+	int fd;
+	int ret;
+	int i;
+
 	memset(queue, 0, sizeof(*queue));
-	queue->fd = open(device, O_RDWR | O_CLOEXEC);
-	if (queue->fd < 0) {
-		set_error(error, error_len, "failed to open device %s", device);
-		return -errno;
+	queue->fd = -1;
+
+	if (!selected || !selected[0])
+		selected = getenv("APOLLO_HEXAGON_DEV");
+
+	for (i = 0; i < APOLLO_HEXAGON_ACCEL_SCAN_MAX; i++) {
+		if (selected && selected[0]) {
+			ret = copy_string(candidate, sizeof(candidate), selected);
+		} else {
+			ret = snprintf(candidate, sizeof(candidate),
+				       "/dev/accel/accel%d", i);
+			ret = ret >= 0 && (size_t)ret < sizeof(candidate) ?
+			      0 : -ENAMETOOLONG;
+		}
+		if (ret) {
+			set_error(error, error_len,
+				  "DRM accel device path is too long", NULL);
+			return ret;
+		}
+
+		fd = open(candidate, O_RDWR | O_CLOEXEC);
+		if (fd < 0) {
+			if (selected && selected[0]) {
+				set_error(error, error_len,
+					  "failed to open DRM accel device %s",
+					  candidate);
+				return -errno;
+			}
+			continue;
+		}
+
+		memset(&query, 0, sizeof(query));
+		if (ioctl(fd, DRM_IOCTL_APOLLO_HEXAGON_QUERY, &query) == 0)
+			break;
+
+		ret = -errno;
+		close(fd);
+		if (selected && selected[0]) {
+			set_error(error, error_len,
+				  "failed to query Apollo DRM accel device %s",
+				  candidate);
+			return ret;
+		}
 	}
-	queue->device = device;
+
+	if (i == APOLLO_HEXAGON_ACCEL_SCAN_MAX) {
+		set_error(error, error_len,
+			  "failed to discover Apollo DRM accel device %s",
+			  "/dev/accel/accel*");
+		return -ENOENT;
+	}
+
+	ret = copy_string(queue->device_path, sizeof(queue->device_path),
+			  candidate);
+	if (ret) {
+		close(fd);
+		set_error(error, error_len, "DRM accel device path is too long",
+			  NULL);
+		return ret;
+	}
+	queue->fd = fd;
+	queue->device = queue->device_path;
 	queue->queue_id = 0;
-	queue->queue_count = 2;
+	queue->queue_count = query.queue_count ? query.queue_count : 1;
 	return 0;
 }
 
@@ -168,15 +234,16 @@ int apollo_hexagon_queue_submit_cnn(struct apollo_hexagon_queue *queue,
 				    struct apollo_hexagon_fence *fence,
 				    char *error, size_t error_len)
 {
-	struct apollo_hexagon_cnn_job job;
+	struct drm_apollo_hexagon_cnn_job job;
 	int ret;
 
 	memset(&job, 0, sizeof(job));
 	memcpy(job.input, cmd->input, sizeof(job.input));
 	job.queue_id = queue->queue_id;
-	ret = ioctl(queue->fd, APOLLO_HEXAGON_IOC_SUBMIT_CNN, &job);
+	ret = ioctl(queue->fd, DRM_IOCTL_APOLLO_HEXAGON_SUBMIT_CNN, &job);
 	if (ret < 0) {
-		set_error(error, error_len, "APOLLO_HEXAGON_IOC_SUBMIT_CNN failed",
+		set_error(error, error_len,
+			  "DRM_IOCTL_APOLLO_HEXAGON_SUBMIT_CNN failed",
 			  NULL);
 		return -errno;
 	}
@@ -195,16 +262,17 @@ int apollo_hexagon_queue_submit_vadd(struct apollo_hexagon_queue *queue,
 				     struct apollo_hexagon_fence *fence,
 				     char *error, size_t error_len)
 {
-	struct apollo_hexagon_vadd_job job;
+	struct drm_apollo_hexagon_vadd_job job;
 	int ret;
 
 	memset(&job, 0, sizeof(job));
 	memcpy(job.lhs, cmd->lhs, sizeof(job.lhs));
 	memcpy(job.rhs, cmd->rhs, sizeof(job.rhs));
 	job.queue_id = queue->queue_id;
-	ret = ioctl(queue->fd, APOLLO_HEXAGON_IOC_SUBMIT_VADD, &job);
+	ret = ioctl(queue->fd, DRM_IOCTL_APOLLO_HEXAGON_SUBMIT_VADD, &job);
 	if (ret < 0) {
-		set_error(error, error_len, "APOLLO_HEXAGON_IOC_SUBMIT_VADD failed",
+		set_error(error, error_len,
+			  "DRM_IOCTL_APOLLO_HEXAGON_SUBMIT_VADD failed",
 			  NULL);
 		return -errno;
 	}
@@ -224,7 +292,7 @@ int apollo_hexagon_queue_submit_dma_stress(struct apollo_hexagon_queue *queue,
 					   struct apollo_hexagon_fence *fence,
 					   char *error, size_t error_len)
 {
-	struct apollo_hexagon_dma_stress_job job;
+	struct drm_apollo_hexagon_dma_stress_job job;
 	int ret;
 
 	memset(&job, 0, sizeof(job));
@@ -232,9 +300,10 @@ int apollo_hexagon_queue_submit_dma_stress(struct apollo_hexagon_queue *queue,
 	job.segment_bytes = bytes / APOLLO_HEXAGON_DMA_STRESS_SEGMENTS;
 	job.seed = seed;
 	job.queue_id = queue->queue_id;
-	ret = ioctl(queue->fd, APOLLO_HEXAGON_IOC_DMA_STRESS, &job);
+	ret = ioctl(queue->fd, DRM_IOCTL_APOLLO_HEXAGON_DMA_STRESS, &job);
 	if (ret < 0) {
-		set_error(error, error_len, "APOLLO_HEXAGON_IOC_DMA_STRESS failed",
+		set_error(error, error_len,
+			  "DRM_IOCTL_APOLLO_HEXAGON_DMA_STRESS failed",
 			  NULL);
 		return -errno;
 	}

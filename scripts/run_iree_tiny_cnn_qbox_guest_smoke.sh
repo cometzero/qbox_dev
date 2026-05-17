@@ -34,7 +34,7 @@ for marker in \
   'Run /sbin/init as init process' \
   'apollo-qbox login:' \
   'APOLLO_HEXAGON_DMA: path=smmu-translated' \
-  'apollo-hexagon-test 1c220000.hexagon: probe ok'; do
+  'apollo-hexagon 1c220000.hexagon: probe ok'; do
   if ! grep -F "${marker}" "${log_path}" >/dev/null; then
     echo "missing QBox boot marker: ${marker}" >&2
     echo "log: ${log_path}" >&2

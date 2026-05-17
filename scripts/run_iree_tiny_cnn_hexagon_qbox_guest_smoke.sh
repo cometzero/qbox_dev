@@ -33,8 +33,8 @@ fi
 for marker in \
   'Run /sbin/init as init process' \
   'apollo-qbox login:' \
-  'userspace submit ABI ready at /dev/apollo-hexagon' \
-  'userspace submit ABI ready at /dev/apollo-hexagon-2 stream-id=0x2' \
+  'userspace submit ABI ready at /dev/accel/accel*' \
+  'userspace submit ABI ready at /dev/accel/accel* stream-id=0x2 primary=0' \
   'async doorbell irq ready irq=' \
   'dma path smmu-translated caps=0x7d stream-id=' \
   'smmuv3-translated=yes queues=2 async-fence=yes large-tensor=yes' \
@@ -68,6 +68,7 @@ for marker in \
   'APOLLO_SMMU_TBU: PRI request resolved stream-id=0x1' \
   'APOLLO_SMMU_TBU: fault queue push stream-id=0x1' \
   'dynamic SMMU SG map refreshed bytes=131072 segments=8' \
+  'IREE Apollo Hexagon HAL: drm-accel device=/dev/accel/accel' \
   'APOLLO_HEXAGON_DMA: firmware requested DMA src=0x' \
   'APOLLO_HEXAGON_DMA: path=smmu-translated stream-id=0x1 pasid-valid=1 pasid=0x3' \
   'APOLLO_SMMU_TBU: ATS cache fill stream-id=0x1' \
