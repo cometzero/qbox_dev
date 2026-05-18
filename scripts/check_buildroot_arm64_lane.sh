@@ -100,6 +100,8 @@ require_executable "${repo_root}/scripts/run_iree_vector_add_host_smoke.sh" "IRE
 require_executable "${repo_root}/scripts/stage_iree_vector_add_guest_artifacts.sh" "IREE vector-add guest artifact staging script"
 require_executable "${repo_root}/scripts/run_iree_vector_add_hexagon_qbox_guest_smoke.sh" "IREE vector-add Hexagon QBox guest smoke script"
 require_executable "${repo_root}/scripts/run_iree_vector_add_hexagon_qbox_ssh.sh" "IREE vector-add Hexagon QBox SSH script"
+require_executable "${repo_root}/scripts/run_iree_apko_vadd_hexagon_qbox_guest_smoke.sh" "generic APKO vector-add smoke scaffold"
+require_executable "${repo_root}/scripts/run_iree_apko_cnn_hexagon_qbox_guest_smoke.sh" "generic APKO tiny-CNN smoke scaffold"
 require_executable "${repo_root}/scripts/run_qbox_iommu_runtime_test.sh" "QBox IOMMU runtime test smoke script"
 
 require_grep '^BR2_aarch64=y$' "${defconfig}" "AArch64 target"
@@ -270,6 +272,8 @@ require_grep 'command_buffer=fixed' "${repo_root}/scripts/stage_iree_tiny_cnn_gu
 require_grep 'fence=async-irq-poll' "${repo_root}/scripts/stage_iree_tiny_cnn_guest_artifacts.sh" "Apollo IREE Hexagon fence metadata"
 require_grep 'QBOX_HEXAGON_MLIR_ARTIFACT' "${repo_root}/scripts/stage_iree_tiny_cnn_guest_artifacts.sh" "Hexagon-MLIR tiny-CNN sidecar staging override"
 require_grep 'QBOX_HEXAGON_MLIR_ARTIFACT' "${repo_root}/scripts/stage_iree_vector_add_guest_artifacts.sh" "Hexagon-MLIR vector-add sidecar staging override"
+require_grep 'generic APKO VADD smoke is blocked' "${repo_root}/scripts/run_iree_apko_vadd_hexagon_qbox_guest_smoke.sh" "generic APKO VADD smoke blocker message"
+require_grep 'generic APKO CNN smoke is blocked' "${repo_root}/scripts/run_iree_apko_cnn_hexagon_qbox_guest_smoke.sh" "generic APKO CNN smoke blocker message"
 require_grep 'DRM_IOCTL_APOLLO_HEXAGON_SUBMIT_CNN' "${board}/guest-tools/apollo_hexagon_uapi_guest.h" "Apollo IREE Hexagon HAL submit ABI"
 require_grep 'DRM_IOCTL_APOLLO_HEXAGON_DMA_STRESS' "${board}/guest-tools/apollo_hexagon_uapi_guest.h" "Apollo IREE Hexagon HAL DMA stress ABI"
 require_grep 'DRM_IOCTL_APOLLO_HEXAGON_SUBMIT_VADD' "${board}/guest-tools/apollo_hexagon_uapi_guest.h" "Apollo IREE Hexagon vector-add submit ABI"

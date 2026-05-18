@@ -562,6 +562,9 @@ ordinal을 전달해야 한다.
      `run_iree_vector_add_hexagon_qbox_guest_smoke.sh`
    - generic: `run_iree_apko_vadd_hexagon_qbox_guest_smoke.sh`,
      `run_iree_apko_cnn_hexagon_qbox_guest_smoke.sh`
+   - 2026-05-18 현재 repository에는 위 generic script scaffold가 추가되었고,
+     compat lane은 유지되며 generic APKO ABI/dispatch 부재는 blocked 메시지로
+     명시한다.
 6. `doc/verification/` report는 fixed compat 통과와 generic v2 통과를 혼동하지
    않도록 따로 기록한다.
 
