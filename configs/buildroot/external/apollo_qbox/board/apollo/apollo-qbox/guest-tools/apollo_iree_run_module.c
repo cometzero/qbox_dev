@@ -203,6 +203,10 @@ int main(int argc, char **argv)
 	       device->plugin_path, device->ops->name, device->ops->api_version);
 	printf("IREE Apollo Hexagon HAL: executable=%s entry=%s bytes=%zu\n",
 	       exe.module_path, exe.entry_point, exe.module_size);
+	if (exe.compiler_name[0])
+		printf("IREE Apollo Hexagon HAL: compiler bridge=%s artifact=%s bytes=%zu\n",
+		       exe.compiler_name, exe.compiler_artifact_path,
+		       exe.compiler_artifact_size);
 	printf("IREE Apollo Hexagon HAL: executable_plugin compatibility export=%s staged\n",
 	       "iree_hal_executable_plugin_query");
 	printf("IREE Apollo Hexagon HAL: queues=%u command-buffer=fixed fence=async-irq-poll\n",

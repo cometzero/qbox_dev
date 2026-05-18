@@ -22,8 +22,10 @@ pipeline을 Apollo QBox 환경에 단계적으로 연결한다. 현재 기능 �
   별도 과제다.
 - 완료 범위: guest artifact lane에서 `iree-run-module --device=apollo-hexagon`
   호출이 repo-local upstream-style HAL registry frontend로 dispatch되고 CPU
-  fallback device name을 거부한다. 단, upstream IREE source tree에 HAL backend를
-  merge하는 작업은 아직 별도 과제다.
+  fallback device name을 거부한다. upstream IREE source tree는 `sources/iree`에
+  구성했고 Hexagon-MLIR source tree는 `sources/hexagon-mlir`에 구성했지만,
+  HAL/backend compiler integration을 build/registry에 merge하는 작업은 아직
+  별도 과제다.
 - 완료 범위: SMMU-translated TLM path는 4KiB page split, functional page-table
   walk marker, ATS cache marker, PRI resolution marker, fault queue status/clear,
   128KiB scatter/gather DMA stress를 검증한다.
@@ -42,7 +44,7 @@ pipeline을 Apollo QBox 환경에 단계적으로 연결한다. 현재 기능 �
 
 | ID | 상태 | 소유 파일/영역 | 결과물 | 완료 기준 |
 | --- | --- | --- | --- | --- |
-| IREE-CNN-UPSTREAM-001 | 대기 | upstream IREE runtime + Buildroot package | Apollo Hexagon C HAL driver/plugin의 정식 runtime 등록 | local repo shim 없이 `iree-run-module`이 HAL device를 discover/open하고 upstream IREE 테스트가 통과 |
+| IREE-CNN-UPSTREAM-001 | 진행(소스 구성) | `sources/iree`, `sources/hexagon-mlir`, upstream IREE runtime + Buildroot package | Apollo Hexagon C HAL driver/plugin과 Hexagon compiler backend의 정식 runtime/build 등록 | local repo shim 없이 `iree-run-module`이 HAL device를 discover/open하고 upstream IREE/Hexagon-MLIR 테스트가 통과 |
 | IREE-CNN-SMMU-001 | 진행(확장 필요) | QBox SMMUv3 model + Linux/IOMMU traces | 전체 Arm SMMUv3 register/descriptor/protocol compliance model | 모든 architected register, descriptor bitfield, event/PRI/fault queue, ATS/PRI transport, interrupt wiring test 통과 |
 | IREE-CNN-SMMU-002 | 완료(부분) | `apollo_smmu_tbu`, `apollo-hexagon-selftest.c` | shared SRAM 4-level table descriptor chain을 downstream TLM으로 fetch/decode하는 architectural descriptor probe | boot/probe log의 `SMMUv3 architectural descriptor probe ok`와 `architectural descriptor walk` marker |
 | IREE-CNN-SMMU-003 | 완료(확장 slice) | `apollo_smmu_tbu`, `apollo-hexagon-selftest.c` | STE/CD walk, architected ATS/PRI response accounting, invalid STE negative fault replay | boot/probe log의 `SMMUv3 stream/context descriptor probe ok`, `SMMUv3 negative fault replay ok`, `architected fault replay queued` marker |
@@ -57,7 +59,7 @@ pipeline을 Apollo QBox 환경에 단계적으로 연결한다. 현재 기능 �
 | IREE-CNN-003 | 완료 | `doc/spec/qbox-iree-cnn-pipeline-tasks.md` | 다음 단계 task backlog와 acceptance criteria | 문서 검토 및 repo check |
 | IREE-CNN-004 | 완료 | `doc/verification/qbox-iree-cnn-pipeline-2026-04-28.md` | 한글 구현/검증 리포트 | 실행 로그와 boot evidence 연결 |
 | IREE-CNN-005A | 완료 | `scripts/stage_iree_tiny_cnn_guest_artifacts.sh`, `post-build.sh` | AArch64 VMFB/reference/runner를 Buildroot rootfs에 선택 staging | `rootfs.cpio` 내 `/opt/qbox/iree/tiny-cnn` 확인 |
-| IREE-CNN-005B | 완료 | Buildroot external tree, IREE runtime package | A710 guest 내부 `iree-run-module` 실행 | qbox guest에서 tensor output `1x1x2x2xf32=[[[54 63][90 99]]]` 비교 |
+| IREE-CNN-005B | 완료 | Buildroot external tree, `sources/iree` runtime package | A710 guest 내부 `iree-run-module` 실행 | qbox guest에서 tensor output `1x1x2x2xf32=[[[54 63][90 99]]]` 비교 |
 | IREE-CNN-006 | 완료 | Apollo Linux driver/DTS | `/dev/apollo-hexagon` submit ioctl, completion path | guest userspace command smoke |
 | IREE-CNN-007 | 완료 | Apollo SMMU/TBU model | dynamic map/unmap register path over translated TLM data plane | QBox log의 map/unmap/translate marker |
 | IREE-CNN-008 | 완료 | IREE-compatible HAL shim | `apollo-iree-hexagon-runner` device/runner prototype | guest runner output 및 HAL marker |
@@ -86,14 +88,17 @@ pipeline을 Apollo QBox 환경에 단계적으로 연결한다. 현재 기능 �
 
 ### A710 guest baseline
 
-1. Buildroot rootfs에 IREE runtime 또는 runner가 포함되어야 한다. **완료**
+1. Buildroot rootfs에 IREE runtime 또는 runner가 포함되어야 한다.
+   **완료: `BR2_PACKAGE_IREE_RUNTIME=y`가 `sources/iree`에서
+   `iree-run-module`을 빌드해 `/usr/bin`에 설치**
 2. AArch64 target VMFB 또는 compatible runtime artifact가 staging되어야 한다. **완료**
 3. qbox boot 후 staged rootfs가 기존 boot lane을 깨지 않아야 한다. **완료**
 4. qbox boot 후 guest shell에서 동일 CNN output을 확인해야 한다. **완료**
 5. upstream IREE executable plugin ABI export를 `--executable_plugin`으로 로드해도
    local-task 실행이 성공해야 한다. **완료(로컬 export/load 검증)**
 6. Apollo HAL device가 upstream IREE runtime에 정식 C HAL driver/plugin으로 등록되어
-   local shim 없이 discover/open되어야 한다. **대기: `IREE-CNN-UPSTREAM-001`**
+   local shim 없이 discover/open되어야 한다. **진행(소스 구성):
+   `IREE-CNN-UPSTREAM-001`; HAL build/registry 통합은 미완료**
 6-1. QBox guest artifact lane에서 `iree-run-module --device=apollo-hexagon`이
    Apollo registry frontend로 dispatch되고 CPU fallback을 거부해야 한다.
    **완료(기능 slice): `IREE-CNN-014A`**
@@ -126,10 +131,14 @@ pipeline을 Apollo QBox 환경에 단계적으로 연결한다. 현재 기능 �
 
 ## 현재 상태 및 경계
 
-- A710 CPU IREE baseline은 guest 실행까지 완료됐다. 현재 runner는 PyPI
-  `iree-base-runtime` manylinux AArch64 wheel에서 추출한 `iree-run-module`을
-  optional rootfs artifact로 staging하는 방식이며, Buildroot native package화는
-  별도 과제다.
+- A710 CPU IREE baseline은 guest 실행까지 완료됐다. 현재 rootfs lane은
+  `BR2_PACKAGE_IREE_RUNTIME=y`로 `sources/iree`에서 `iree-run-module`을 빌드해
+  `/usr/bin`에 포함한다. tiny-CNN artifact staging은 source-built Buildroot
+  runtime을 우선 사용하고, 명시적 override 또는 PyPI wheel fallback을 보조 경로로
+  유지한다.
+- Hexagon-MLIR upstream source는 `sources/hexagon-mlir`에 shallow submodule로
+  구성됐다. Triton/PyTorch lowering을 Apollo Hexagon path에 연결하는 build/test
+  integration은 아직 후속 과제다.
 - Apollo Hexagon path는 실제 QBox guest에서 `/dev/apollo-hexagon` submit ABI,
   repo-local dynamic C HAL plugin, firmware CNN runtime, SMMU-translated DMA를
   통과해 expected tensor까지 검증됐다.

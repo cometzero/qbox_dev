@@ -5,10 +5,12 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 smoke_out=${QBOX_IREE_SMOKE_OUT:-"${repo_root}/build/verification/iree-tiny-cnn-host"}
 stage_dir=${QBOX_IREE_GUEST_STAGE_DIR:-"${repo_root}/build/iree-guest-artifacts/tiny-cnn"}
 venv_dir=${QBOX_IREE_SMOKE_VENV:-"${repo_root}/build/iree-smoke-venv"}
+buildroot_output=${QBOX_BUILDROOT_OUTPUT:-"${repo_root}/build/buildroot-a710"}
 runtime_version=${QBOX_IREE_RUNTIME_VERSION:-3.11.0}
 wheel_dir=${QBOX_IREE_AARCH64_WHEEL_DIR:-"${repo_root}/build/iree-aarch64-wheel"}
 extract_dir=${QBOX_IREE_AARCH64_EXTRACT_DIR:-"${repo_root}/build/iree-aarch64-runtime-extract"}
 hexagon_tools_dir=${QBOX_APOLLO_HEXAGON_TOOLS_OUT:-"${repo_root}/build/apollo-hexagon-guest-tools"}
+hexagon_mlir_artifact=${QBOX_HEXAGON_MLIR_ARTIFACT:-}
 
 "${repo_root}/scripts/run_iree_tiny_cnn_host_smoke.sh"
 "${repo_root}/scripts/build_apollo_hexagon_guest_tools.sh"
@@ -17,21 +19,33 @@ if [[ ! -x "${venv_dir}/bin/python" ]]; then
   python3 -m venv "${venv_dir}"
 fi
 
-mkdir -p "${wheel_dir}"
-if ! compgen -G "${wheel_dir}/iree_base_runtime-${runtime_version}-*aarch64*.whl" >/dev/null; then
-  "${venv_dir}/bin/python" -m pip download \
-    --only-binary=:all: \
-    --no-deps \
-    --platform manylinux_2_28_aarch64 \
-    --implementation cp \
-    --python-version 312 \
-    --abi cp312 \
-    --dest "${wheel_dir}" \
-    "iree-base-runtime==${runtime_version}"
-fi
+runtime_bin=${QBOX_IREE_RUNTIME_BIN:-}
+runtime_source=${QBOX_IREE_RUNTIME_SOURCE:-}
+if [[ -n "${runtime_bin}" ]]; then
+  if [[ ! -x "${runtime_bin}" ]]; then
+    echo "QBOX_IREE_RUNTIME_BIN is not executable: ${runtime_bin}" >&2
+    exit 1
+  fi
+  runtime_source=${runtime_source:-"user-provided QBOX_IREE_RUNTIME_BIN"}
+elif [[ -x "${buildroot_output}/target/usr/bin/iree-run-module" ]]; then
+  runtime_bin="${buildroot_output}/target/usr/bin/iree-run-module"
+  runtime_source="Buildroot iree-runtime package from sources/iree"
+elif [[ "${QBOX_IREE_USE_WHEEL_RUNTIME:-1}" != 0 ]]; then
+  mkdir -p "${wheel_dir}"
+  if ! compgen -G "${wheel_dir}/iree_base_runtime-${runtime_version}-*aarch64*.whl" >/dev/null; then
+    "${venv_dir}/bin/python" -m pip download \
+      --only-binary=:all: \
+      --no-deps \
+      --platform manylinux_2_28_aarch64 \
+      --implementation cp \
+      --python-version 312 \
+      --abi cp312 \
+      --dest "${wheel_dir}" \
+      "iree-base-runtime==${runtime_version}"
+  fi
 
-rm -rf "${extract_dir}"
-"${venv_dir}/bin/python" - "${wheel_dir}" "${runtime_version}" "${extract_dir}" <<'PY'
+  rm -rf "${extract_dir}"
+  "${venv_dir}/bin/python" - "${wheel_dir}" "${runtime_version}" "${extract_dir}" <<'PY'
 from pathlib import Path
 import sys
 import zipfile
@@ -57,9 +71,14 @@ with zipfile.ZipFile(wheel) as zf:
 print(wheel)
 PY
 
-runtime_bin="${extract_dir}/iree/_runtime_libs/iree-run-module"
-if [[ ! -s "${runtime_bin}" ]]; then
-  echo "missing extracted AArch64 iree-run-module: ${runtime_bin}" >&2
+  runtime_bin="${extract_dir}/iree/_runtime_libs/iree-run-module"
+  runtime_source="PyPI iree-base-runtime manylinux aarch64 wheel"
+fi
+
+if [[ -z "${runtime_bin}" || ! -s "${runtime_bin}" ]]; then
+  echo "missing AArch64 iree-run-module runtime" >&2
+  echo "Run: ./scripts/build_iree_runtime_buildroot.sh" >&2
+  echo "Or set QBOX_IREE_RUNTIME_BIN=/path/to/iree-run-module" >&2
   exit 1
 fi
 chmod 0755 "${runtime_bin}"
@@ -93,6 +112,18 @@ install -m 0644 "${smoke_out}/tiny_cnn.mlir" "${stage_dir}/tiny_cnn.mlir"
 install -m 0644 "${smoke_out}/tiny_cnn_aarch64.vmfb" "${stage_dir}/tiny_cnn_aarch64.vmfb"
 install -m 0644 "${smoke_out}/reference.json" "${stage_dir}/reference.json"
 install -m 0644 "${smoke_out}/report.json" "${stage_dir}/host-report.json"
+hexagon_mlir_rel=
+if [[ -n "${hexagon_mlir_artifact}" ]]; then
+  if [[ ! -s "${hexagon_mlir_artifact}" ]]; then
+    echo "QBOX_HEXAGON_MLIR_ARTIFACT is missing or empty: ${hexagon_mlir_artifact}" >&2
+    exit 1
+  fi
+  install -d "${stage_dir}/hexagon-mlir"
+  hexagon_mlir_name=$(basename "${hexagon_mlir_artifact}")
+  install -m 0644 "${hexagon_mlir_artifact}" \
+    "${stage_dir}/hexagon-mlir/${hexagon_mlir_name}"
+  hexagon_mlir_rel="hexagon-mlir/${hexagon_mlir_name}"
+fi
 cat > "${stage_dir}/apollo_hexagon.vmfb.meta" <<'META'
 module=tiny_cnn_aarch64.vmfb
 entry=tiny_cnn_graph
@@ -104,6 +135,13 @@ queue=multi
 command_buffer=fixed
 fence=async-irq-poll
 META
+if [[ -n "${hexagon_mlir_rel}" ]]; then
+  {
+    echo "compiler=hexagon-mlir"
+    echo "compiler_model=tiny-cnn"
+    echo "compiler_artifact=${hexagon_mlir_rel}"
+  } >> "${stage_dir}/apollo_hexagon.vmfb.meta"
+fi
 
 cat > "${stage_dir}/bin/iree-run-module" <<'GUEST'
 #!/bin/sh
@@ -162,7 +200,7 @@ if [ ! -x "${runner}" ]; then
 fi
 if [ -z "${runner}" ] || [ ! -x "${runner}" ]; then
   echo "iree-run-module is not installed in this Buildroot image." >&2
-  echo "The VMFB and reference fixture are staged; add an AArch64 IREE runtime package next." >&2
+  echo "Enable BR2_PACKAGE_IREE_RUNTIME or provide IREE_RUN_MODULE." >&2
   exit 127
 fi
 
@@ -197,13 +235,15 @@ exec "${runner}" \
 GUEST
 chmod 0755 "${stage_dir}/run_tiny_cnn_hexagon_guest.sh"
 
-"${venv_dir}/bin/python" - "${stage_dir}" "${runtime_version}" <<'PY'
+"${venv_dir}/bin/python" - "${stage_dir}" "${runtime_version}" "${runtime_source}" "${hexagon_mlir_rel}" <<'PY'
 from pathlib import Path
 import json
 import subprocess
 import sys
 stage = Path(sys.argv[1])
 runtime_version = sys.argv[2]
+runtime_source = sys.argv[3]
+hexagon_mlir_rel = sys.argv[4]
 runner = stage / 'bin' / 'iree-run-module.real'
 try:
     runner_file = subprocess.check_output(['file', str(runner)], text=True).strip()
@@ -216,7 +256,7 @@ manifest = {
     'guest_install_path': '/opt/qbox/iree/tiny-cnn',
     'expected_output': '1x1x2x2xf32=[[[54 63][90 99]]]',
     'runtime': {
-        'source': 'PyPI iree-base-runtime manylinux aarch64 wheel',
+        'source': runtime_source,
         'version': runtime_version,
         'runner': 'bin/iree-run-module',
         'real_runner': 'bin/iree-run-module.real',
@@ -237,8 +277,14 @@ manifest = {
         'dma_stress_bytes': 131072,
         'dma_stress_segments': 8,
     },
+    'hexagon_mlir_bridge': {
+        'status': 'metadata_sidecar_staged' if hexagon_mlir_rel else 'not_requested',
+        'model': 'tiny-cnn',
+        'artifact': hexagon_mlir_rel,
+        'execution_contract': 'metadata-only sidecar; current Apollo Hexagon ABI still runs the fixed tiny-CNN ioctl path',
+    },
     'files': {str(p.relative_to(stage)): p.stat().st_size for p in sorted(stage.rglob('*')) if p.is_file()},
-    'next_requirement': 'Run run_tiny_cnn_guest.sh for A710 CPU or run_tiny_cnn_hexagon_guest.sh for Apollo Hexagon offload in the QBox guest.',
+    'next_requirement': 'Build the rootfs with BR2_PACKAGE_IREE_RUNTIME=y, then run run_tiny_cnn_guest.sh for A710 CPU or run_tiny_cnn_hexagon_guest.sh for Apollo Hexagon offload in the QBox guest.',
 }
 (stage / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
 print(json.dumps(manifest, indent=2))

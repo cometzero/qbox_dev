@@ -216,6 +216,10 @@ int main(int argc, char **argv)
 	       queue.device);
 	printf("IREE Apollo Hexagon HAL: executable=%s entry=%s bytes=%zu\n",
 	       exe.module_path, exe.entry_point, exe.module_size);
+	if (exe.compiler_name[0])
+		printf("IREE Apollo Hexagon HAL: compiler bridge=%s artifact=%s bytes=%zu\n",
+		       exe.compiler_name, exe.compiler_artifact_path,
+		       exe.compiler_artifact_size);
 	printf("IREE Apollo Hexagon HAL: dynamic C HAL plugin=%s name=%s api=%u\n",
 	       binding.dynamic ? plugin : "direct-linked", binding.ops->name,
 	       binding.ops->api_version);

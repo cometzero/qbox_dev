@@ -1,5 +1,7 @@
 menu "QBox ARM64 external options"
 
+source "$BR2_EXTERNAL_APOLLO_QBOX_PATH/package/iree-runtime/Config.in"
+
 config BR2_PACKAGE_APOLLO_QBOX_BOARD_MARKER
 	bool "Install Apollo QBox board marker"
 	default y

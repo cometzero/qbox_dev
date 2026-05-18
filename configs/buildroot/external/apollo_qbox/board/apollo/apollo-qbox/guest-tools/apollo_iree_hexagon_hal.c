@@ -106,6 +106,21 @@ int apollo_hexagon_load_executable(const char *metadata_path,
 			else if (strncmp(line, "plugin=", 7) == 0)
 				join_relative(exe->plugin_path, sizeof(exe->plugin_path),
 					      metadata_path, line + 7);
+			else if (strncmp(line, "compiler=", 9) == 0)
+				copy_string(exe->compiler_name,
+					    sizeof(exe->compiler_name), line + 9);
+			else if (strncmp(line, "compiler_artifact=", 18) == 0)
+				join_relative(exe->compiler_artifact_path,
+					      sizeof(exe->compiler_artifact_path),
+					      metadata_path, line + 18);
+			else if (strncmp(line, "hexagon_mlir_artifact=", 22) == 0) {
+				copy_string(exe->compiler_name,
+					    sizeof(exe->compiler_name),
+					    "hexagon-mlir");
+				join_relative(exe->compiler_artifact_path,
+					      sizeof(exe->compiler_artifact_path),
+					      metadata_path, line + 22);
+			}
 		}
 		fclose(fp);
 	}
@@ -133,6 +148,18 @@ int apollo_hexagon_load_executable(const char *metadata_path,
 			set_error(error, error_len, "plugin path is too long", NULL);
 			return -ENAMETOOLONG;
 		}
+	}
+	if (exe->compiler_artifact_path[0]) {
+		if (stat(exe->compiler_artifact_path, &st)) {
+			set_error(error, error_len,
+				  "failed to stat compiler artifact %s",
+				  exe->compiler_artifact_path);
+			return -errno;
+		}
+		exe->compiler_artifact_size = (size_t)st.st_size;
+		if (!exe->compiler_name[0])
+			copy_string(exe->compiler_name, sizeof(exe->compiler_name),
+				    "hexagon-mlir");
 	}
 
 	return 0;

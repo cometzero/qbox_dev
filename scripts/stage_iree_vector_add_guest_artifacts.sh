@@ -9,6 +9,7 @@ runtime_version=${QBOX_IREE_RUNTIME_VERSION:-3.11.0}
 wheel_dir=${QBOX_IREE_AARCH64_WHEEL_DIR:-"${repo_root}/build/iree-aarch64-wheel"}
 extract_dir=${QBOX_IREE_AARCH64_EXTRACT_DIR:-"${repo_root}/build/iree-aarch64-runtime-extract"}
 hexagon_tools_dir=${QBOX_APOLLO_HEXAGON_TOOLS_OUT:-"${repo_root}/build/apollo-hexagon-guest-tools"}
+hexagon_mlir_artifact=${QBOX_HEXAGON_MLIR_ARTIFACT:-}
 
 "${repo_root}/scripts/run_iree_vector_add_host_smoke.sh"
 "${repo_root}/scripts/build_apollo_hexagon_guest_tools.sh"
@@ -93,6 +94,18 @@ install -m 0644 "${smoke_out}/vector_add.mlir" "${stage_dir}/vector_add.mlir"
 install -m 0644 "${smoke_out}/vector_add_aarch64.vmfb" "${stage_dir}/vector_add_aarch64.vmfb"
 install -m 0644 "${smoke_out}/reference.json" "${stage_dir}/reference.json"
 install -m 0644 "${smoke_out}/report.json" "${stage_dir}/host-report.json"
+hexagon_mlir_rel=
+if [[ -n "${hexagon_mlir_artifact}" ]]; then
+  if [[ ! -s "${hexagon_mlir_artifact}" ]]; then
+    echo "QBOX_HEXAGON_MLIR_ARTIFACT is missing or empty: ${hexagon_mlir_artifact}" >&2
+    exit 1
+  fi
+  install -d "${stage_dir}/hexagon-mlir"
+  hexagon_mlir_name=$(basename "${hexagon_mlir_artifact}")
+  install -m 0644 "${hexagon_mlir_artifact}" \
+    "${stage_dir}/hexagon-mlir/${hexagon_mlir_name}"
+  hexagon_mlir_rel="hexagon-mlir/${hexagon_mlir_name}"
+fi
 cat > "${stage_dir}/apollo_hexagon.vmfb.meta" <<'META'
 module=vector_add_aarch64.vmfb
 entry=vector_add_graph
@@ -104,6 +117,13 @@ queue=multi
 command_buffer=fixed
 fence=async-irq-poll
 META
+if [[ -n "${hexagon_mlir_rel}" ]]; then
+  {
+    echo "compiler=hexagon-mlir"
+    echo "compiler_model=vector-add"
+    echo "compiler_artifact=${hexagon_mlir_rel}"
+  } >> "${stage_dir}/apollo_hexagon.vmfb.meta"
+fi
 
 cat > "${stage_dir}/bin/iree-run-module" <<'GUEST'
 #!/bin/sh
@@ -198,13 +218,14 @@ exec "${runner}" \
 GUEST
 chmod 0755 "${stage_dir}/run_vector_add_hexagon_guest.sh"
 
-"${venv_dir}/bin/python" - "${stage_dir}" "${runtime_version}" <<'PY'
+"${venv_dir}/bin/python" - "${stage_dir}" "${runtime_version}" "${hexagon_mlir_rel}" <<'PY'
 from pathlib import Path
 import json
 import subprocess
 import sys
 stage = Path(sys.argv[1])
 runtime_version = sys.argv[2]
+hexagon_mlir_rel = sys.argv[3]
 runner = stage / "bin" / "iree-run-module.real"
 try:
     runner_file = subprocess.check_output(["file", str(runner)], text=True).strip()
@@ -235,6 +256,12 @@ manifest = {
         "queue": "multi",
         "command_buffer": "fixed",
         "fence": "async-irq-poll",
+    },
+    "hexagon_mlir_bridge": {
+        "status": "metadata_sidecar_staged" if hexagon_mlir_rel else "not_requested",
+        "model": "vector-add",
+        "artifact": hexagon_mlir_rel,
+        "execution_contract": "metadata-only sidecar; current Apollo Hexagon ABI still runs the fixed VADD ioctl path",
     },
     "files": {str(p.relative_to(stage)): p.stat().st_size
               for p in sorted(stage.rglob("*")) if p.is_file()},

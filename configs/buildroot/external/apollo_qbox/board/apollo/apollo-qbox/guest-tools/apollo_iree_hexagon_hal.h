@@ -14,9 +14,12 @@
 struct apollo_hexagon_executable {
 	char module_path[256];
 	char plugin_path[256];
+	char compiler_name[64];
+	char compiler_artifact_path[256];
 	char entry_point[96];
 	char expected_output[160];
 	size_t module_size;
+	size_t compiler_artifact_size;
 };
 
 struct apollo_hexagon_command_buffer {
