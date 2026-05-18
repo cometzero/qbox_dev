@@ -39,6 +39,8 @@ for marker in \
   'dma path smmu-translated caps=0x7d stream-id=' \
   'smmuv3-translated=yes queues=2 async-fence=yes large-tensor=yes' \
   'arm-smmu-v3 dma-iommu map installed' \
+  'SMMUv3 architected queue' \
+  'SMMUv3 RIL TLBI_NH_VA range selftest ok' \
   'APOLLO_SMMU_TBU: map stream-id=0x1' \
   'APOLLO_SMMU_TBU: unmap stream-id=0x1' \
   'APOLLO_SMMU_TBU: ATS cache fill stream-id=0x1' \

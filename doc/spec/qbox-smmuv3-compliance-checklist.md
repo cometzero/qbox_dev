@@ -33,7 +33,7 @@ compliance without passing model/unit, platform/DTS/IRQ, and runtime evidence.
 | SMMU-COMP-060 | functional-slice | QBox Apollo TBU + Linux probe | ATS success/UR/CA outcomes including STE.Config==0 UR without EVENTQ recording, PRG-tagged PRI pending, CMD_PRI_RESP head-ordered exact-PRG/StreamID/PASID clear/reject/unknown plus SMMUEN-disabled no-op, PRIQ_CONS advancement, and reserved-code CERROR_ILL handling, Secure CMDQ CMD_PRI_RESP Non-secure StreamID handling, IDR0.ATS/PRI advertisement plus explicit unsupported-command guards, PRIQ OVFLG/OVACKFLG overflow acknowledgement, PRIQ_ABT_ERR queue-write abort reporting, automatic PRI success response for no-PASID Last PPR overflow, STE.PPAR-driven PASID-prefixed overflow response selection with REC_CFG_ATS/RECINVSID-gated lookup-fault recording, plus failure responses for Secure-stream, invalid STE.PPAR lookup, disabled, and abort-active cases, modeled PRI PPR SSV/Last/R/W/X/Priv metadata, PRI PRGIndex 9-bit allocation/encoding/head-ordered response matching plus PRIQ_CONS advancement, Stop PASID Marker no-response handling, non-last overflow discard without auto-response, and incoming PPR enqueue independence from CR0.ATSCHK/STE.EATS, CR0.ATSCHK plus STE.EATS ATS Translation Request gates including architected nested split-stage IPA walks, ATS Translation Request translation faults returned as Success with R==W==0 and no SMMU event, ATS Translation Request configuration lookup faults returned as Completer Abort and STE.Config abort returned as Unsupported Request with F_BAD_ATS_TREQ, ATS Translation Request write intent (NW==0) drives HTTU dirty updates for writable-clean DBM pages and HA-only write intent returns modeled W==0/no-event, modeled ATS Translated rejection with F_TRANSL_FORBIDDEN plus address-size no-event abort behavior, stage-2-only and architected nested split-stage ATS Translated IPA walks plus modeled STE.PRIVCFG/INSTCFG effective access overrides before the nested stage-2-only walk plus implementation-defined rejection for unsupported non-stage2/non-nested split-stage traffic, STE.Config==0b100 F_TRANSL_FORBIDDEN aborts, DPT register RES0/WI policy plus DPT EATS unsupported F_TRANSL_FORBIDDEN aborts, PASIDTT-disabled SSV/PnU/InD clearing, and ATSCHK==0 configuration-lookup bypass, CR2.REC_CFG_ATS-gated ATS Translated configuration-fault recording, partial Translated event-priority validation including F_VMS_FETCH from a modeled STE.VMSPtr path, and CR2.REC_CFG_ATS/RECINVSID recording gates are component/Linux-probed; bounded E0PD/PTWNNC behavior is covered for the advertised SMMUv3.3 surface; full packet protocol and ECMDQ protocol remain open. |
 | SMMU-COMP-070 | functional-slice | QBox platform + Apollo TBU + Linux probe | Apollo TBU now has signal-level EVENTQ/PRIQ/CMDQ_SYNC/GERROR IRQ outputs, masks unsupported IRQ_CTRL bits into IRQ_CTRLACK, exposes raw GERROR toggle state, models GERROR/GERRORN active-bit toggle acknowledgement, reports architected EVENTQ_ABT_ERR/PRIQ_ABT_ERR queue-abort bits, component-tests MSI IRQ_CFG registers, CMD_SYNC MSI writes, MSI abort GERROR bits, Secure CMD_SYNC wired visibility through S_IRQ_CTRL/S_IRQ_CTRLACK, Secure EVENTQ MSI routing through S_EVENTQ_IRQ_CFG/S_GERROR, Secure PRIQ MSI routing through S_PRIQ_IRQ_CFG/S_GERROR.MSI_PRIQ_ABORT, and Secure GERROR MSI routing through S_GERROR_IRQ_CFG/S_GERROR.MSI_GERROR_ABORT, drives Apollo Hexagon DMA async fence doorbell signals into Linux-visible SPIs, and the Linux probe binds the doorbell IRQ and waits on interrupt-driven fence completion before polling fallback; full GIC/MSI ordering and upstream arm-smmu-v3 lifecycle remain open. |
 | SMMU-COMP-080 | functional-slice | QBox Apollo TBU + DMA | TLM StreamID plus endpoint PASID/SSID propagation and modeled STE output attributes for context-bypass, STE.Config all-bypass, stage-1/stage-2/nested translation, ATS Translated payload paths, the bounded GATOS_PAR return path, the architected non-secure SMMU_GATOS register group RUN/PAR/no-event ATOS path, the Secure SMMU_S_GATOS RUN/PAR/no-event ATOS path with S_GATOS_SID.SSEC Secure-vs-Non-secure stream selection, bounded ATOS_ADDR.TYPE stage-selection on SMMU_GATOS, ATOS_ADDR.PnU/InD access-field decode with STE output-override suppression on architected ATOS_PAR success, a non-advertised internal VATOS/S_VATOS stage-1-only model with GATOS/VATOS PAR isolation plus VMID-scoped VATOS rejection, per-SID/SSID ATS tagging, per-SID map/cache isolation, SID/page/global plus ASID/VMID/SSID-tagged command invalidation, Linux guest ATC_INV/TLBI_NH_ALL plus RIL TLBI_NH_VA range-command stress coverage, and a second Linux-visible StreamID 0x2 DMA master are present; full PCIe/RID topology remains open. |
-| SMMU-COMP-090 | functional-slice | guest tools/IREE staging | `iree-run-module --device=apollo-hexagon` now dispatches through a repo-local upstream-style HAL registry frontend that dynamically loads/registers the staged Apollo Hexagon C HAL plugin; true upstream IREE source integration remains open. |
+| SMMU-COMP-090 | functional-slice | guest tools/IREE staging | `iree-run-module --device=apollo-hexagon` now dispatches through a repo-local upstream-style HAL registry frontend that dynamically loads/registers the staged Apollo Hexagon C HAL plugin; upstream IREE source checkout is configured under `sources/iree`, while Apollo HAL build/registry integration remains open. |
 | SMMU-REF-000 | reference-only | `sources/smmu` | Pinned reference corpus exists, with one known C++ test failure. |
 
 ## Machine-readable checklist
@@ -427,7 +427,7 @@ compliance without passing model/unit, platform/DTS/IRQ, and runtime evidence.
         },
         {
           "path": "sources/linux/drivers/accel/apollo_hexagon/apollo-hexagon-selftest.c",
-          "pattern": "APOLLO_SMMUV3_ARCH_IDR3\t\t0x00007794",
+          "pattern": "APOLLO_SMMUV3_ARCH_IDR3\t\t\t0x00007794",
           "description": "Linux guest probe expects the updated IDR3.MPAM discovery value."
         },
         {
@@ -4425,8 +4425,23 @@ compliance without passing model/unit, platform/DTS/IRQ, and runtime evidence.
       "title": "Upstream IREE HAL registry",
       "status": "functional-slice",
       "owner": "Apollo guest tools/IREE staging",
-      "claim_scope": "Repo-local iree-run-module dispatch now discovers apollo-hexagon through an upstream-style HAL registry frontend, dynamically dlopens/registers the staged Apollo Hexagon C HAL plugin, and rejects CPU fallback; true upstream IREE source integration remains pending.",
+      "claim_scope": "Repo-local iree-run-module dispatch now discovers apollo-hexagon through an upstream-style HAL registry frontend, dynamically dlopens/registers the staged Apollo Hexagon C HAL plugin, and rejects CPU fallback; upstream IREE source checkout is configured under sources/iree, while Apollo HAL build/registry integration remains pending.",
       "source_evidence": [
+        {
+          "path": ".gitmodules",
+          "pattern": "github.com/iree-org/iree.git",
+          "description": "Official upstream IREE source is configured as the sources/iree submodule."
+        },
+        {
+          "path": "sources/iree/README.md",
+          "pattern": "IREE: Intermediate Representation Execution Environment",
+          "description": "The sources/iree checkout contains the upstream IREE source tree."
+        },
+        {
+          "path": "configs/buildroot/external/apollo_qbox/package/iree-runtime/iree-runtime.mk",
+          "pattern": "IREE_RUNTIME_BUILD_OPTS = --target iree-run-module",
+          "description": "Buildroot can build the IREE runtime runner from the upstream source checkout."
+        },
         {
           "path": "configs/buildroot/external/apollo_qbox/board/apollo/apollo-qbox/guest-tools/apollo_iree_hal_registry.c",
           "pattern": "apollo_iree_hal_registry_lookup",
