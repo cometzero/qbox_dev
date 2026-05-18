@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kernel Review"
+  short_description: "Use vendored Linux kernel review prompts for Codex kernel work."
+  default_prompt: "Review the current Linux kernel change using the vendored kernel review prompts."
