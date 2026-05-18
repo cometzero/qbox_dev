@@ -19,3 +19,13 @@
 [submodule "sources/smmu"]
 	path = sources/smmu
 	url = https://github.com/jpgreninger/smmu.git
+[submodule "sources/iree"]
+	path = sources/iree
+	url = https://github.com/iree-org/iree.git
+	branch = main
+	shallow = true
+[submodule "sources/hexagon-mlir"]
+	path = sources/hexagon-mlir
+	url = https://github.com/qualcomm/hexagon-mlir.git
+	branch = main
+	shallow = true
