@@ -59,6 +59,7 @@ def repo_checks(repo: Path) -> list[Check]:
     vadd = scripts / "run_iree_apko_vadd_hexagon_qbox_guest_smoke.sh"
     vadd_vmfb = scripts / "run_iree_apko_vadd_vmfb_hexagon_qbox_guest_smoke.sh"
     cnn = scripts / "run_iree_apko_cnn_hexagon_qbox_guest_smoke.sh"
+    cnn_vmfb = scripts / "run_iree_apko_cnn_vmfb_hexagon_qbox_guest_smoke.sh"
     negative = scripts / "run_iree_apko_negative_hexagon_qbox_guest_smoke.sh"
     vector_stage = scripts / "stage_iree_vector_add_guest_artifacts.sh"
     tiny_stage = scripts / "stage_iree_tiny_cnn_guest_artifacts.sh"
@@ -78,8 +79,8 @@ def repo_checks(repo: Path) -> list[Check]:
     add(
         checks,
         "apko_smoke_scripts_executable",
-        all(executable(path) for path in (vadd, vadd_vmfb, cnn, negative)),
-        "APKO VADD, VMFB-embedded VADD, CNN, and negative smoke scripts are executable",
+        all(executable(path) for path in (vadd, vadd_vmfb, cnn, cnn_vmfb, negative)),
+        "APKO VADD, VMFB-embedded VADD/CNN, CNN, and negative smoke scripts are executable",
     )
     add(
         checks,
@@ -95,6 +96,21 @@ def repo_checks(repo: Path) -> list[Check]:
             ),
         ),
         "VMFB smoke proves repo-local embedded APKO source, generic submit, and VADD output",
+    )
+    add(
+        checks,
+        "vmfb_embedded_apko_cnn_smoke_contract",
+        require_markers(
+            cnn_vmfb,
+            (
+                "run_tiny_cnn_vmfb_apko_hexagon_guest.sh",
+                "executable_source=vmfb-embedded-apko",
+                "command-buffer=generic-submit",
+                "APKO CMD_SUBMIT CNN ok",
+                "PASS: QBox guest APKO CNN VMFB-embedded output matched",
+            ),
+        ),
+        "VMFB smoke proves repo-local embedded APKO source, generic submit, and CNN output",
     )
     add(
         checks,
@@ -120,12 +136,13 @@ def repo_checks(repo: Path) -> list[Check]:
             (
                 "command-buffer=generic-submit",
                 "generic_abi_version=1",
-                "APKO dispatch start",
-                "APKO dispatch complete",
+                "command dispatch executable slot=1 kind=1",
+                "command dispatch cnn",
+                "APKO CMD_SUBMIT CNN ok",
                 "1x1x2x2xf32=[[[54 63][90 99]]]",
             ),
         ),
-        "CNN smoke keeps APKO generic markers separate from fixed compat success",
+        "CNN smoke uses the same command BO path as VMFB-embedded APKO model dispatch",
     )
     add(
         checks,
@@ -198,6 +215,8 @@ def repo_checks(repo: Path) -> list[Check]:
             (
                 "run_iree_apko_vadd_vmfb_hexagon_qbox_guest_smoke.sh",
                 "VMFB-embedded APKO VADD smoke marker",
+                "run_iree_apko_cnn_vmfb_hexagon_qbox_guest_smoke.sh",
+                "VMFB-embedded APKO CNN smoke marker",
                 "APKO negative ioctl coverage completed",
                 "run_tiny_cnn_vmfb_apko_hexagon_guest\\.sh",
                 "command BO invalid IOVA fault ok",

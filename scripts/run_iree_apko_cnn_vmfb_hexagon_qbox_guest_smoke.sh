@@ -3,11 +3,11 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 log_dir=${QBOX_VERIFICATION_DIR:-"${repo_root}/build/verification"}
-stamp=${QBOX_APKO_CNN_HEXAGON_GUEST_SMOKE_STAMP:-$(date +%Y%m%d-%H%M%S)}
-log_path=${QBOX_APKO_CNN_HEXAGON_GUEST_SMOKE_LOG:-"${log_dir}/qbox-iree-apko-cnn-hexagon-guest-${stamp}.log"}
-boot_log=${QBOX_BOOT_LOG:-"${log_dir}/qbox-iree-apko-cnn-hexagon-guest-boot-${stamp}.log"}
+stamp=${QBOX_APKO_CNN_VMFB_HEXAGON_GUEST_SMOKE_STAMP:-$(date +%Y%m%d-%H%M%S)}
+log_path=${QBOX_APKO_CNN_VMFB_HEXAGON_GUEST_SMOKE_LOG:-"${log_dir}/qbox-iree-apko-cnn-vmfb-hexagon-guest-${stamp}.log"}
+boot_log=${QBOX_BOOT_LOG:-"${log_dir}/qbox-iree-apko-cnn-vmfb-hexagon-guest-boot-${stamp}.log"}
 expected='1x1x2x2xf32=[[[54 63][90 99]]]'
-cmd='/opt/qbox/iree/tiny-cnn/run_tiny_cnn_apko_hexagon_guest.sh'
+cmd='/opt/qbox/iree/tiny-cnn/run_tiny_cnn_vmfb_apko_hexagon_guest.sh'
 
 mkdir -p "${log_dir}"
 
@@ -26,18 +26,42 @@ rc=$?
 set -e
 
 if [[ ${rc} -ne 0 && ${rc} -ne 124 ]]; then
-  echo "QBox APKO CNN guest smoke exited unexpectedly: rc=${rc}" >&2
+  echo "QBox APKO CNN VMFB guest smoke exited unexpectedly: rc=${rc}" >&2
   exit "${rc}"
 fi
+
+require_marker() {
+  local marker=$1
+
+  if ! grep -F "${marker}" "${log_path}" >/dev/null; then
+    echo "missing APKO CNN VMFB marker: ${marker}" >&2
+    echo "log: ${log_path}" >&2
+    exit 1
+  fi
+}
+
+require_any_marker() {
+  local label=$1
+  shift
+
+  for marker in "$@"; do
+    if grep -F "${marker}" "${log_path}" >/dev/null; then
+      return 0
+    fi
+  done
+
+  echo "missing APKO CNN VMFB marker group: ${label}" >&2
+  echo "log: ${log_path}" >&2
+  exit 1
+}
 
 for marker in \
   'Run /sbin/init as init process' \
   'apollo-qbox login:' \
   'userspace submit ABI ready at /dev/accel/accel*' \
-  'dma path smmu-translated caps=0x7d stream-id=' \
-  'arm-smmu-v3 dma-iommu map installed' \
   'IREE Apollo Hexagon HAL: drm-accel device=/dev/accel/accel' \
   'IREE Apollo Hexagon HAL: executable_format=apollo-hexagon-apko-v0' \
+  'IREE Apollo Hexagon HAL: executable_source=vmfb-embedded-apko' \
   'IREE Apollo Hexagon HAL: queues=2 command-buffer=generic-submit' \
   'IREE Apollo Hexagon HAL: generic_abi_version=1 executable_formats=0x00000002' \
   'APOLLO_HEXAGON_DMA: command dispatch executable slot=1 kind=1' \
@@ -47,29 +71,21 @@ for marker in \
   'IREE Apollo Hexagon HAL: offload complete' \
   'async fence signaled queue=' \
   'EXEC @tiny_cnn_graph [apollo-hexagon]'; do
-  if ! grep -F "${marker}" "${log_path}" >/dev/null; then
-    echo "missing APKO CNN marker: ${marker}" >&2
-    echo "log: ${log_path}" >&2
-    exit 1
-  fi
+  require_marker "${marker}"
 done
 
-if ! grep -F 'LOAD_EXECUTABLE slot=1 kind=1' "${log_path}" >/dev/null && \
-   ! grep -F 'APOLLO_HEXAGON_DMA: command load executable slot=1 kind=1' \
-      "${log_path}" >/dev/null; then
-  echo "missing APKO CNN marker: LOAD_EXECUTABLE slot=1 kind=1" >&2
-  echo "log: ${log_path}" >&2
-  exit 1
-fi
+require_any_marker "LOAD_EXECUTABLE slot=1 kind=1" \
+  'LOAD_EXECUTABLE slot=1 kind=1' \
+  'APOLLO_HEXAGON_DMA: command load executable slot=1 kind=1'
 
 if ! grep -F "${expected}" "${log_path}" >/dev/null; then
-  echo "APKO CNN output mismatch; expected: ${expected}" >&2
+  echo "APKO CNN VMFB output mismatch; expected: ${expected}" >&2
   echo "log: ${log_path}" >&2
   exit 1
 fi
 
 cat <<EOF
-PASS: QBox guest APKO CNN output matched
+PASS: QBox guest APKO CNN VMFB-embedded output matched
 Expected: ${expected}
 Log: ${log_path}
 Boot log: ${boot_log}

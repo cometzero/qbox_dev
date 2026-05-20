@@ -362,6 +362,18 @@ struct apollo_hexagon_bound_bo {
 	uint64_t iova;
 };
 
+static const char *apollo_hexagon_exec_kind_name(uint32_t entry_kind)
+{
+	switch (entry_kind) {
+	case APOLLO_HEXAGON_EXEC_KIND_CNN:
+		return "CNN";
+	case APOLLO_HEXAGON_EXEC_KIND_VADD:
+		return "VADD";
+	default:
+		return "unknown";
+	}
+}
+
 static int create_mapped_bo(int fd, struct apollo_hexagon_mapped_bo *bo,
 			    size_t size, char *error, size_t error_len)
 {
@@ -478,10 +490,11 @@ static int unbind_bo(int fd, uint32_t context_handle,
 	return 0;
 }
 
-static int apollo_hexagon_queue_submit_apko_vadd_cmdq(
+static int apollo_hexagon_queue_submit_apko_cmdq(
 	struct apollo_hexagon_queue *queue, uint32_t executable_handle,
-	const void *input, size_t input_bytes, void *output, size_t output_bytes,
-	struct apollo_hexagon_fence *fence, char *error, size_t error_len)
+	uint32_t entry_kind, const void *input, size_t input_bytes, void *output,
+	size_t output_bytes, struct apollo_hexagon_fence *fence, char *error,
+	size_t error_len)
 {
 	struct drm_apollo_hexagon_context_create context;
 	struct drm_apollo_hexagon_context_destroy destroy_context;
@@ -551,7 +564,7 @@ static int apollo_hexagon_queue_submit_apko_vadd_cmdq(
 	packet[2] = APOLLO_HEXAGON_APKO_MAGIC;
 	packet[3] = APOLLO_HEXAGON_APKO_ABI_VERSION;
 	packet[4] = APOLLO_HEXAGON_EXEC_FORMAT_APKO_V0;
-	packet[5] = APOLLO_HEXAGON_EXEC_KIND_VADD;
+	packet[5] = entry_kind;
 	packet[6] = (uint32_t)input_bytes;
 	packet[7] = (uint32_t)output_bytes;
 	packet += APOLLO_HEXAGON_CMDQ_PACKET_WORDS;
@@ -578,12 +591,15 @@ static int apollo_hexagon_queue_submit_apko_vadd_cmdq(
 	}
 
 	memcpy(output, output_bo.map, output_bytes);
-	fence->status = APOLLO_HEXAGON_HAL_STATUS_VADD_OK;
+	fence->status = entry_kind == APOLLO_HEXAGON_EXEC_KIND_VADD ?
+		APOLLO_HEXAGON_HAL_STATUS_VADD_OK :
+		APOLLO_HEXAGON_HAL_STATUS_OK;
 	fence->signaled = 1;
 	fence->queue_id = submit.queue_id;
 	fence->fence_seq = submit.fence_seq;
-	printf("IREE Apollo Hexagon HAL: APKO CMD_SUBMIT VADD ok executable=%u exec_slot=%u ctx=%u cmd_bo=%u input_bind=%u output_bind=%u queue=%u fence=%u status=0x%08x result=0x%08x\n",
-	       executable_handle, exec_slot, context_handle, command_bo.handle,
+	printf("IREE Apollo Hexagon HAL: APKO CMD_SUBMIT %s ok executable=%u exec_slot=%u ctx=%u cmd_bo=%u input_bind=%u output_bind=%u queue=%u fence=%u status=0x%08x result=0x%08x\n",
+	       apollo_hexagon_exec_kind_name(entry_kind), executable_handle,
+	       exec_slot, context_handle, command_bo.handle,
 	       input_bind.handle, output_bind.handle,
 	       submit.queue_id, submit.fence_seq, submit.status, submit.result);
 	ret = 0;
@@ -1047,12 +1063,14 @@ int apollo_hexagon_queue_submit_apko(
 		goto out_destroy;
 	}
 
-	if (create.entry_kind == APOLLO_HEXAGON_EXEC_KIND_VADD &&
+	if ((create.entry_kind == APOLLO_HEXAGON_EXEC_KIND_CNN ||
+	     create.entry_kind == APOLLO_HEXAGON_EXEC_KIND_VADD) &&
 	    queue->max_command_bytes >= APOLLO_HEXAGON_CMDQ_SUBMIT_MAX_BYTES &&
 	    queue->max_bindings_per_dispatch >= 2) {
-		ret = apollo_hexagon_queue_submit_apko_vadd_cmdq(
-			queue, create.handle, input, input_bytes, output,
-			output_bytes, fence, error, error_len);
+		ret = apollo_hexagon_queue_submit_apko_cmdq(
+			queue, create.handle, create.entry_kind, input,
+			input_bytes, output, output_bytes, fence, error,
+			error_len);
 		goto out_destroy;
 	}
 
