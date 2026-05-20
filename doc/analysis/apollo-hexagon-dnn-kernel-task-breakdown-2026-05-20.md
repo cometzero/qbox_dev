@@ -50,8 +50,9 @@ IREE VMFB HAL executable packaging을 완성하는 것이다.
 ## 현재 완료 상태
 
 - Linux driver는 `apollo-hexagon.c` core와 `apollo-hexagon-context.c`,
-  `apollo-hexagon-bo.c`, `apollo-hexagon-exec.c`,
-  `apollo-hexagon-fence.c`, `apollo-hexagon-compat.c`로 1차 분리되어 있다.
+  `apollo-hexagon-bo.c`, `apollo-hexagon-cmdq.c`, `apollo-hexagon-exec.c`,
+  `apollo-hexagon-fault.c`, `apollo-hexagon-fence.c`,
+  `apollo-hexagon-compat.c`, `apollo-hexagon-iommu.c`로 분리되어 있다.
 - UAPI는 append-only로 다음 generic foundation을 갖는다.
   - `QUERY_CAPS`
   - `CONTEXT_CREATE`
@@ -145,6 +146,10 @@ IREE VMFB HAL executable packaging을 완성하는 것이다.
   적재하고 CMDQ doorbell/fence/status를 검증한다.
 - 완료: `WAIT` foundation을 추가해 submit return path와 completion wait path를
   분리하기 시작했다. 아직 command ring 기반 async timeline semaphore는 아니다.
+- 추가 진행: command BO/APKO packet parser, bound-dispatch preparation,
+  output BO ref cleanup, CMDQ wait helper를 `apollo-hexagon-cmdq.c`로 분리했다.
+  `apollo-hexagon-exec.c`는 executable handle과 submit orchestration 중심으로
+  좁혔다.
 - `QUERY_CAPS.max_command_bytes`는 `CMD_SUBMIT`/APKO VADD CMDQ smoke가
   `LOAD_EXECUTABLE -> DISPATCH(exec-slot)` 2-packet buffer를 사용하므로 64로
   올렸다. VADD command BO submit이 input/output BO binding 2개를 소비하므로
@@ -159,7 +164,7 @@ IREE VMFB HAL executable packaging을 완성하는 것이다.
 | L1-2 | 부분 완료: GEM SHMEM BO와 Apollo TBU/SMMU-visible IOVA 연결 | L1-1 | `max_bindings_per_dispatch=2`는 transitional copy shim evidence로만 올렸다. 실제 page mapping은 남아 있다. |
 | L1-3 | 완료: command BO가 tensor BO input/output을 소비하는 VADD/CNN path | L1-1, L1-2 | UMD가 userspace pointer `SUBMIT` 없이 BO create/bind/CMD_SUBMIT만으로 VADD/CNN output BO를 읽는다. |
 | L1-4 | 부분 완료: executable metadata를 command submit과 연결 | `EXEC_CREATE`, L1-3 | `LOAD_EXECUTABLE` metadata slot이 command queue dispatch의 검증 입력으로 사용된다. 실제 code/payload loading은 남아 있다. |
-| L1-5 | submit/fault/iommu file split 정리 | L1-1 이후 | `apollo-hexagon-exec.c`가 과도하게 커지지 않고 submit, fault, iommu 책임이 분리된다. |
+| L1-5 | 부분 완료: submit/fault/iommu/cmdq file split 정리 | L1-1 이후 | `apollo-hexagon-cmdq.c`가 command BO/APKO packet parser와 CMDQ wait helper를 담당한다. 남은 정리는 true hardware BO mapping과 command ring scheduler boundary다. |
 
 완료 기준:
 

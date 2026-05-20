@@ -297,6 +297,7 @@ sources/linux/drivers/accel/apollo_hexagon/
   apollo-hexagon-bo.c         # GEM/BO allocation, mmap, import, pin/map
   apollo-hexagon-iommu.c      # SMMU/IOVA mapping, stream/PASID policy
   apollo-hexagon-exec.c       # executable handle table, APKO validation
+  apollo-hexagon-cmdq.c       # command queue/APKO packet parsing helpers
   apollo-hexagon-submit.c     # command queue submission and scheduler
   apollo-hexagon-fence.c      # timeline fence, IRQ completion, wait
   apollo-hexagon-fault.c      # fault/status decode and debug reporting
@@ -310,11 +311,13 @@ fence handling을 모두 넣는 구조를 끝내는 것이다.
 2026-05-19 리뷰 반영으로 1차 split은 완료됐다. 현재 source layout은
 `apollo-hexagon.c`가 DRM core/probe/ioctl table, `apollo-hexagon-context.c`가
 per-file generic context handle, `apollo-hexagon-bo.c`가 GEM SHMEM buffer object
-생성/삭제, `apollo-hexagon-exec.c`가 APKO executable handle/generic
-submit/`GET_FAULT`, `apollo-hexagon-compat.c`가 fixed CNN/VADD/DMA stress
-compatibility submit을 담당한다. 이 단계는 behavior-preserving 분리와
-context/BO foundation이며, 아래 v2 구조 중 IOMMU binding, command ring, wait,
-fence, fault module 분리는 다음 구현 단계로 남아 있다.
+생성/삭제, `apollo-hexagon-exec.c`가 APKO executable handle/generic submit,
+`apollo-hexagon-compat.c`가 fixed CNN/VADD/DMA stress compatibility submit을
+담당한다. 2026-05-21 추가 진행으로 command BO/APKO packet parser,
+bound-dispatch preparation, CMDQ wait helper는 `apollo-hexagon-cmdq.c`로
+분리했다. 이 단계는 behavior-preserving 분리와 context/BO foundation이며,
+아래 v2 구조 중 true hardware BO mapping과 command ring scheduler는 다음 구현
+단계로 남아 있다.
 
 같은 날 다음 foundation slice로 `DRM_APOLLO_HEXAGON_QUERY_CAPS`도 append-only로
 추가했다. 이 ioctl은 `generic_abi_version`, supported executable format bitmap,
@@ -363,11 +366,11 @@ driver split은 source file 추가만으로 끝나지 않는다. 초기 plan 작
 `sources/linux/drivers/accel/apollo_hexagon/Makefile`이
 `apollo-hexagon-drm-y := apollo-hexagon.o` 단일 object 중심이었다. 현재는
 `apollo-hexagon.o`, `apollo-hexagon-bo.o`, `apollo-hexagon-context.o`,
-`apollo-hexagon-compat.o`, `apollo-hexagon-exec.o`, `apollo-hexagon-fence.o`가
-같은 DRM driver object로
-link된다. 남은 refactor에는 다음을 포함한다.
+`apollo-hexagon-compat.o`, `apollo-hexagon-cmdq.o`, `apollo-hexagon-exec.o`,
+`apollo-hexagon-fault.o`, `apollo-hexagon-fence.o`, `apollo-hexagon-iommu.o`가
+같은 DRM driver object로 link된다. 남은 refactor에는 다음을 포함한다.
 
-- v2 IOMMU/submit/fault object list를 `Makefile`에 추가한다.
+- v2 submit scheduler와 true hardware BO mapping object boundary를 더 좁힌다.
 - `Kconfig` help는 generic APKO/context/GEM BO ABI와 fixed compat ioctl의
   transition 관계를 설명하도록 갱신했다. 이후 command ring이 추가되면
   설명을 다시 좁혀야 한다.
@@ -993,10 +996,11 @@ review를 별도로 수행해야 한다.
   `doc/analysis/apollo-hexagon-dnn-kernel-task-breakdown-2026-05-20.md`에 유지한다.
   해당 문서는 lane별 소유 파일, 선행 조건, 완료 기준, 검증 gate를 포함한다.
 
-1. 완료: APKO executable table, generic submit, `GET_FAULT`는
-   `apollo-hexagon-exec.c`, fixed compat submit/DMA stress path는
+1. 완료/부분: APKO executable table과 generic submit orchestration은
+   `apollo-hexagon-exec.c`, command BO/APKO packet parsing과 CMDQ wait helper는
+   `apollo-hexagon-cmdq.c`, fixed compat submit/DMA stress path는
    `apollo-hexagon-compat.c`로 behavior-preserving 분리했다. 다음 driver 작업은
-   IOMMU/command ring/fence/fault module 분리와 hardware BO mapping이다.
+   true hardware BO mapping과 command ring scheduler이다.
 2. 완료: `DRM_APOLLO_HEXAGON_QUERY_CAPS`를 추가해 UMD가 generic ABI version,
    APKO executable format support, fence/fault capability를 질의하게 했다.
    `CREATE_CONTEXT/DESTROY_CONTEXT`, `BO_CREATE/BO_DESTROY`, `BO_BIND/BO_UNBIND`,
