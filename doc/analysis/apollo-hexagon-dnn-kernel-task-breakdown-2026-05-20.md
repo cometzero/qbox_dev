@@ -358,13 +358,15 @@ QBOX_APKO_VADD_HEXAGON_GUEST_SMOKE_STAMP=<stamp> \
 | L3-2 | 완료: HAL allocator를 BO create/bind 기반으로 전환 | L1-1 또는 transitional shim | APKO VADD/CNN input/output이 userspace pointer가 아니라 mapped BO로 전달된다. |
 | L3-3 | 완료: command buffer record/submit을 command BO 기반으로 전환 | L1-3 | APKO VADD/CNN UMD가 `DRM_IOCTL_APOLLO_HEXAGON_CMD_SUBMIT`을 happy path에서 사용한다. |
 | L3-4 | 부분 완료: VMFB executable data에서 APKO payload 추출 | IREE compile artifact policy | staged VMFB 뒤에 repo-local APKO trailer를 붙이고 `.vmfb.meta` 없이 loader가 APKO를 찾는다. upstream IREE HAL executable section packaging은 남아 있다. |
+| L3-4a | 완료: Buildroot runtime wrapper에 Apollo repo-local frontend 포함 | L3-1 | rootfs의 `/usr/bin/iree-run-module`은 local CPU 실행을 source-built real runner로 넘기고, `apollo-hexagon` query/dispatch는 repo-local registry frontend와 dynamic HAL plugin으로 넘긴다. |
 | L3-5 | upstream IREE external HAL build/staging | L3-1, L3-4 | Buildroot rootfs의 `iree-run-module --device=apollo-hexagon://0`가 device query와 VADD run을 통과한다. |
 
 완료 기준:
 
 - guest에서 `iree-run-module --list_drivers`가 `apollo-hexagon`을 보여준다.
-- guest에서 `iree-run-module --dump_devices --device=apollo-hexagon://0`가 실제
-  driver query 결과를 출력한다.
+- guest에서 `iree-run-module --dump_devices --device=apollo-hexagon://0`가 repo-local
+  registry frontend와 dynamic HAL plugin query 결과를 출력한다. 이 증거는 wrapper
+  경로임을 marker로 남겨 upstream IREE HAL driver 완료로 과장하지 않는다.
 - VADD/CNN VMFB smoke가 APKO sidecar metadata가 아니라 VMFB executable data 기반으로
   Apollo path를 선택한다.
   2026-05-20 추가 slice는 `vector_add_apollo.vmfb`/`tiny_cnn_apollo.vmfb`에
@@ -382,6 +384,9 @@ QBOX_APKO_VADD_HEXAGON_GUEST_SMOKE_STAMP=<stamp> \
 ./scripts/build_apollo_hexagon_guest_tools.sh
 QBOX_IREE_VECTOR_ADD_SKIP_HOST_SMOKE=1 \
   ./scripts/stage_iree_vector_add_guest_artifacts.sh
+build/buildroot-a710/target/usr/bin/iree-run-module --list_drivers
+build/buildroot-a710/target/usr/bin/iree-run-module --dump_devices \
+  --device=apollo-hexagon://0
 ```
 
 ## 작업 레인 4: Contracts, Negative Tests, and Evidence

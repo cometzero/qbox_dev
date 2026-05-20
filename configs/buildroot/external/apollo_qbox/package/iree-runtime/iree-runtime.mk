@@ -12,6 +12,8 @@ IREE_RUNTIME_LICENSE_FILES = LICENSE
 IREE_RUNTIME_SUPPORTS_IN_SOURCE_BUILD = NO
 IREE_RUNTIME_CMAKE_BACKEND = ninja
 IREE_RUNTIME_DEPENDENCIES = host-iree-runtime host-python3
+IREE_RUNTIME_APOLLO_GUEST_TOOLS = $(BR2_EXTERNAL_APOLLO_QBOX_PATH)/board/apollo/apollo-qbox/guest-tools
+IREE_RUNTIME_APOLLO_GUEST_TOOLS_BUILD = $(@D)/apollo-qbox-guest-tools
 
 IREE_RUNTIME_CONF_OPTS = \
 	-DBUILD_SHARED_LIBS=OFF \
@@ -33,9 +35,51 @@ IREE_RUNTIME_CONF_OPTS = \
 
 IREE_RUNTIME_BUILD_OPTS = --target iree-run-module
 
+define IREE_RUNTIME_BUILD_APOLLO_FRONTEND
+	mkdir -p $(IREE_RUNTIME_APOLLO_GUEST_TOOLS_BUILD)/bin \
+		$(IREE_RUNTIME_APOLLO_GUEST_TOOLS_BUILD)/lib
+	$(TARGET_CC) $(TARGET_CFLAGS) -Os -Wall -Wextra -Werror \
+		-I$(IREE_RUNTIME_APOLLO_GUEST_TOOLS) \
+		$(IREE_RUNTIME_APOLLO_GUEST_TOOLS)/apollo_iree_run_module.c \
+		$(IREE_RUNTIME_APOLLO_GUEST_TOOLS)/apollo_iree_hal_registry.c \
+		$(IREE_RUNTIME_APOLLO_GUEST_TOOLS)/apollo_iree_hexagon_hal.c \
+		$(TARGET_LDFLAGS) -ldl \
+		-o $(IREE_RUNTIME_APOLLO_GUEST_TOOLS_BUILD)/bin/apollo-iree-run-module
+	$(TARGET_CC) $(TARGET_CFLAGS) -Os -Wall -Wextra -Werror \
+		-I$(IREE_RUNTIME_APOLLO_GUEST_TOOLS) \
+		$(IREE_RUNTIME_APOLLO_GUEST_TOOLS)/apollo_iree_hexagon_runner.c \
+		$(IREE_RUNTIME_APOLLO_GUEST_TOOLS)/apollo_iree_hexagon_hal.c \
+		$(TARGET_LDFLAGS) -ldl \
+		-o $(IREE_RUNTIME_APOLLO_GUEST_TOOLS_BUILD)/bin/apollo-iree-hexagon-runner
+	$(TARGET_CC) $(TARGET_CFLAGS) -Os -Wall -Wextra -Werror \
+		-I$(IREE_RUNTIME_APOLLO_GUEST_TOOLS) \
+		$(IREE_RUNTIME_APOLLO_GUEST_TOOLS)/apollo_hexagon_apko_negative.c \
+		$(TARGET_LDFLAGS) \
+		-o $(IREE_RUNTIME_APOLLO_GUEST_TOOLS_BUILD)/bin/apollo-hexagon-apko-negative
+	$(TARGET_CC) $(TARGET_CFLAGS) -Os -Wall -Wextra -Werror \
+		-fPIC -shared \
+		-I$(IREE_RUNTIME_APOLLO_GUEST_TOOLS) \
+		$(IREE_RUNTIME_APOLLO_GUEST_TOOLS)/apollo_iree_hexagon_plugin.c \
+		$(IREE_RUNTIME_APOLLO_GUEST_TOOLS)/apollo_iree_hexagon_hal.c \
+		$(TARGET_LDFLAGS) \
+		-o $(IREE_RUNTIME_APOLLO_GUEST_TOOLS_BUILD)/lib/libapollo_iree_hexagon_hal_plugin.so
+endef
+
+IREE_RUNTIME_POST_BUILD_HOOKS += IREE_RUNTIME_BUILD_APOLLO_FRONTEND
+
 define IREE_RUNTIME_INSTALL_TARGET_CMDS
 	$(INSTALL) -D -m 0755 $(@D)/buildroot-build/tools/iree-run-module \
+		$(TARGET_DIR)/usr/libexec/qbox/iree-run-module.real
+	$(INSTALL) -D -m 0755 $(IREE_RUNTIME_APOLLO_GUEST_TOOLS)/iree-run-module-wrapper.sh \
 		$(TARGET_DIR)/usr/bin/iree-run-module
+	$(INSTALL) -D -m 0755 $(IREE_RUNTIME_APOLLO_GUEST_TOOLS_BUILD)/bin/apollo-iree-run-module \
+		$(TARGET_DIR)/usr/bin/apollo-iree-run-module
+	$(INSTALL) -D -m 0755 $(IREE_RUNTIME_APOLLO_GUEST_TOOLS_BUILD)/bin/apollo-iree-hexagon-runner \
+		$(TARGET_DIR)/usr/bin/apollo-iree-hexagon-runner
+	$(INSTALL) -D -m 0755 $(IREE_RUNTIME_APOLLO_GUEST_TOOLS_BUILD)/bin/apollo-hexagon-apko-negative \
+		$(TARGET_DIR)/usr/bin/apollo-hexagon-apko-negative
+	$(INSTALL) -D -m 0755 $(IREE_RUNTIME_APOLLO_GUEST_TOOLS_BUILD)/lib/libapollo_iree_hexagon_hal_plugin.so \
+		$(TARGET_DIR)/usr/lib/qbox/libapollo_iree_hexagon_hal_plugin.so
 endef
 
 HOST_IREE_RUNTIME_SITE = $(IREE_RUNTIME_SITE)

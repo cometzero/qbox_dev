@@ -7,9 +7,12 @@ config BR2_PACKAGE_IREE_RUNTIME
 	  Build a minimal IREE runtime from the repo-local sources/iree
 	  checkout and install iree-run-module into the target rootfs.
 
-	  This package intentionally builds the runtime and local CPU HAL
-	  only. The Apollo Hexagon registry/frontend remains a separate
-	  repo-local guest tool staged with the QBox IREE smoke artifacts.
+	  The upstream IREE runtime build still enables only the local CPU
+	  HAL drivers. The installed /usr/bin/iree-run-module is a QBox
+	  wrapper: local CPU devices are forwarded to the source-built IREE
+	  binary, while apollo-hexagon queries and dispatches are routed to
+	  the repo-local Apollo registry frontend and dynamic HAL plugin.
+	  This is transitional evidence, not an upstream IREE HAL driver.
 
 comment "iree-runtime needs a C++17 toolchain with thread support"
 	depends on !BR2_INSTALL_LIBSTDCPP || !BR2_TOOLCHAIN_HAS_THREADS || \

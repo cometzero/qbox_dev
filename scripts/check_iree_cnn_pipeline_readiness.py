@@ -134,7 +134,22 @@ def repo_checks(repo: Path) -> list[Check]:
 
     add(checks, "buildroot_rootfs_only", has(buildroot_defconfig, r"^BR2_TARGET_ROOTFS_CPIO=y$") and not has(buildroot_defconfig, r"^BR2_LINUX_KERNEL"), "Buildroot defconfig builds rootfs/initramfs and excludes kernel build", "a710_cpu_baseline")
     add(checks, "buildroot_cxx_runtime", has(buildroot_defconfig, r"^BR2_TOOLCHAIN_BUILDROOT_CXX=y$") and has(buildroot_defconfig, r"^BR2_INSTALL_LIBSTDCPP=y$"), "Buildroot defconfig enables C++ and installs libstdc++ required by the IREE runner", "a710_guest_runtime")
-    add(checks, "buildroot_iree_runtime_package", has(buildroot_defconfig, r"^BR2_PACKAGE_IREE_RUNTIME=y$") and has(external_config, r"package/iree-runtime/Config\.in") and has(external_mk, r"package/\*/\*\.mk") and iree_runtime_config.is_file() and has(iree_runtime_mk, r"IREE_RUNTIME_SITE = .*/sources/iree") and has(iree_runtime_mk, r"IREE_RUNTIME_BUILD_OPTS = --target iree-run-module") and has(iree_runtime_mk, r"IREE_HOST_BIN_DIR=\$\(HOST_DIR\)/bin") and os_access_executable(iree_runtime_build_script), "Buildroot external tree builds source-based IREE iree-run-module from sources/iree and includes it in the Apollo rootfs", "a710_guest_runtime")
+    buildroot_iree_runtime = (
+        has(buildroot_defconfig, r"^BR2_PACKAGE_IREE_RUNTIME=y$")
+        and has(external_config, r"package/iree-runtime/Config\.in")
+        and has(external_mk, r"package/\*/\*\.mk")
+        and iree_runtime_config.is_file()
+        and has(iree_runtime_config, r"upstream IREE HAL driver")
+        and has(iree_runtime_mk, r"IREE_RUNTIME_SITE = .*/sources/iree")
+        and has(iree_runtime_mk, r"IREE_RUNTIME_BUILD_OPTS = --target iree-run-module")
+        and has(iree_runtime_mk, r"IREE_HOST_BIN_DIR=\$\(HOST_DIR\)/bin")
+        and has(iree_runtime_mk, r"IREE_RUNTIME_BUILD_APOLLO_FRONTEND")
+        and has(iree_runtime_mk, r"iree-run-module\.real")
+        and has(iree_runtime_mk, r"apollo-iree-run-module")
+        and has(iree_runtime_mk, r"libapollo_iree_hexagon_hal_plugin\.so")
+        and os_access_executable(iree_runtime_build_script)
+    )
+    add(checks, "buildroot_iree_runtime_package", buildroot_iree_runtime, "Buildroot external tree builds source-based IREE iree-run-module from sources/iree, keeps it as iree-run-module.real, and installs the repo-local Apollo registry frontend/plugin wrapper without claiming upstream HAL completion", "a710_guest_runtime")
     add(checks, "standalone_linux_builder", has(linux_script, r"sources/linux") and has(linux_script, r"\bImage\b") and has(linux_script, r"ccache"), "standalone Linux Image build script uses sources/linux and ccache", "a710_cpu_baseline")
     add(checks, "a710_linux_config", has(linux_config, r"^CONFIG_ARM_SMMU_V3=y$") and has(linux_config, r"^CONFIG_DRM_ACCEL_APOLLO_HEXAGON=y$") and has(linux_config, r"^CONFIG_IOMMU_TEST=y$"), "Linux config fragment enables ARM SMMUv3, the Apollo Hexagon DRM accel driver, and the common IOMMU runtime test driver; ARCH=arm64 is supplied by build script", "a710_cpu_baseline")
     add(checks, "apollo_hexagon_dt_binding", has(dts, r"compatible = \"apollo,hexagon-ip\"") and has(dts, r"iommus = <&smmu 0x1>") and has(dts, r"apollo,dma-path = \"smmu-translated\""), "DTS exposes Apollo Hexagon node behind SMMU with smmu-translated DMA contract", "hexagon_dma_smoke")
@@ -364,7 +379,7 @@ def main() -> int:
         "summary": summarize(checks),
         "checks": [check.__dict__ for check in checks],
         "classification": {
-            "a710_cpu_iree_baseline": "guest_runtime_ready: boot/rootfs/kernel lane exists and the Buildroot rootfs now includes a source-built IREE iree-run-module package for AArch64 VMFB smoke tests",
+            "a710_cpu_iree_baseline": "guest_runtime_ready: boot/rootfs/kernel lane exists and the Buildroot rootfs now includes a source-built IREE iree-run-module package for AArch64 VMFB smoke tests plus a QBox Apollo frontend wrapper for repo-local apollo-hexagon dispatch",
             "hexagon_iree_accelerator": "repo_local_integration_ready: dynamic C HAL plugin, /dev/accel/accel* DRM accel submit ABI, VMFB metadata loader, multi-queue command buffer/fence runner, >64KB SG DMA stress, and firmware CNN runtime are implemented and smoke-testable",
             "smmu_dma_model": "functional_smmuv3_ready: dynamic map/unmap/clear registers, page-table walk observability, ATS/PRI/fault queue status, and translated TLM splitting support >64KB SG stress",
             "upstream_iree_hal_driver": "guarded_pending: repo-local iree-run-module query/dispatch exposes apollo-hexagon through a C HAL registry frontend and dynamically dlopens the Apollo plugin, but guard markers explicitly classify wrapper and VMFB-trailer evidence as transitional until Apollo is registered in the upstream IREE runtime HAL driver registry",

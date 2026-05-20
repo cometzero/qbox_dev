@@ -28,6 +28,13 @@ true hardware BO mapping, upstream IREE HAL executable packaging 완료 증거�
 - `scripts/check_*`
 - `doc/analysis/apollo-hexagon-dnn-kernel-*.md`
 
+2026-05-21 추가 리뷰 반영으로 Buildroot `iree-runtime` 패키지도 갱신했다. 이제
+source-built upstream `iree-run-module`은 `/usr/libexec/qbox/iree-run-module.real`에
+보존하고, `/usr/bin/iree-run-module`은 local CPU 실행을 real runner로 전달하면서
+`apollo-hexagon` query/dispatch를 repo-local `apollo-iree-run-module`과
+`libapollo_iree_hexagon_hal_plugin.so`로 라우팅한다. 이 경로는 rootfs 기본 runtime
+query evidence를 제공하지만, upstream IREE HAL driver 등록 완료 증거는 아니다.
+
 ## 실행한 검증
 
 ```bash
@@ -57,6 +64,19 @@ QBOX_IREE_TINY_CNN_SKIP_HOST_SMOKE=1 \
   ./scripts/stage_iree_tiny_cnn_guest_artifacts.sh
 QBOX_IREE_MNIST_SKIP_HOST_SMOKE=1 \
   ./scripts/stage_iree_mnist_guest_artifacts.sh
+QBOX_BUILDROOT_JOBS=2 ./scripts/build_iree_runtime_buildroot.sh
+QBOX_BUILDROOT_JOBS=2 \
+QBOX_IREE_VECTOR_ADD_GUEST_ARTIFACTS_DIR=/build/qbox_dev/build/iree-guest-artifacts/vector-add \
+QBOX_IREE_GUEST_ARTIFACTS_DIR=/build/qbox_dev/build/iree-guest-artifacts/tiny-cnn \
+QBOX_IREE_MNIST_GUEST_ARTIFACTS_DIR=/build/qbox_dev/build/iree-guest-artifacts/mnist \
+  ./scripts/build_qbox_buildroot_arm64.sh
+./scripts/build_qbox_linux_arm64.sh
+./scripts/stage_buildroot_artifacts.sh
+QBOX_BOOT_TIMEOUT=80 \
+QBOX_APKO_VADD_HEXAGON_GUEST_SMOKE_STAMP=20260521-044848 \
+  ./scripts/run_iree_apko_vadd_hexagon_qbox_guest_smoke.sh
+QBOX_BOOT_TIMEOUT=55 QBOX_BOOT_LOG=build/verification/qbox-iree-runtime-wrapper-query-boot-20260521-045030.log \
+  ./scripts/run_qbox_buildroot_boot.sh
 od -An -t u4 -j 80 -N 4 \
   build/iree-guest-artifacts/vector-add/vector_add.apko
 od -An -t u4 -j 80 -N 4 \
@@ -81,15 +101,43 @@ git -C sources/qbox diff --check
 - Buildroot ARM64 lane contract checker: PASS
 - SMMUv3 compliance checker: PASS 1063
 - VADD/CNN/MNIST APKO staging: PASS
+- Buildroot `iree-runtime` package rebuild: PASS. Target rootfs contains
+  `/usr/bin/iree-run-module` wrapper,
+  `/usr/libexec/qbox/iree-run-module.real`,
+  `/usr/bin/apollo-iree-run-module`,
+  `/usr/lib/qbox/libapollo_iree_hexagon_hal_plugin.so`.
+- Buildroot rootfs rebuild with VADD/CNN/MNIST guest artifacts: PASS
+- Standalone Linux Image rebuild: PASS. The staged kernel reports
+  `Linux version 7.0.0-13912-gdb85e4ae4196 ... #67 SMP PREEMPT Thu May 21 04:48:15 KST 2026`.
+- QBox artifact staging: PASS
+- `/usr/bin/iree-run-module` wrapper guest query: PASS.
+  - log: `build/verification/qbox-iree-runtime-wrapper-query-20260521-045030.log`
+  - markers: `apollo-hexagon (Apollo QBox repo-local C HAL registry frontend)`,
+    `device[0]=apollo-hexagon://0`,
+    `dynamically registered C HAL plugin=/usr/lib/qbox/libapollo_iree_hexagon_hal_plugin.so`,
+    `upstream_hal_driver=not-linked`
+- QBox guest APKO VADD smoke: PASS.
+  - log: `build/verification/qbox-iree-apko-vadd-hexagon-guest-20260521-044848.log`
+  - boot log: `build/verification/qbox-iree-apko-vadd-hexagon-guest-boot-20260521-044848.log`
+  - markers: `max_command_bytes=128`, `command BO LOAD_PAYLOAD slot=1 opcode=2`,
+    `command BO LOAD_CODE slot=1 offset=0 words=1 entry_word=65538`,
+    `APOLLO_HEXAGON_DMA: command load code slot=1 offset=0 words=1 entry=65538`,
+    `IREE Apollo Hexagon HAL: APKO CMD_SUBMIT VADD ok`, `4xf32=11 22 33 44`
 - staged APKO code-entry words: VADD `65538`, CNN `65537`, MNIST `65539`
 - diff whitespace checks: PASS
 
-## 미수행 검증
+## 재검증 중 확인한 artifact skew
 
-- QBox guest boot smoke는 이번 수정 이후 rootfs를 다시 빌드하지 않아 실행하지 않았다.
-  현재 boot smoke는 `/opt/qbox/iree/*`에 포함된 rootfs artifact를 사용하므로, 새
-  `LOAD_CODE` UMD를 검증하려면 staging artifact를 Buildroot rootfs에 포함해
-  재빌드한 뒤 실행해야 한다.
+- 첫 APKO VADD smoke
+  `build/verification/qbox-iree-apko-vadd-hexagon-guest-20260521-044414.log`는
+  결과 tensor 자체는 `4xf32=11 22 33 44`였지만 smoke marker에서 실패했다. 당시
+  guest query가 `max_command_bytes=64`를 보고해 최신 4-packet command BO 경로가
+  아니라 legacy executable submit fallback으로 실행되었기 때문이다.
+- 원인은 rootfs는 갱신했지만 staged Linux Image가 이전 `#66` build였던 artifact
+  skew였다. `./scripts/build_qbox_linux_arm64.sh`와
+  `./scripts/stage_buildroot_artifacts.sh`를 다시 실행한 뒤 `#67` Image에서
+  `max_command_bytes=128`과 `LOAD_PAYLOAD/LOAD_CODE` command BO marker가 모두
+  확인되었다.
 
 ## 확인된 새 계약
 

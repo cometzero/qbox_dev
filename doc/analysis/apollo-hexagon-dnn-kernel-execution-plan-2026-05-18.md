@@ -251,7 +251,11 @@ UMD 전환은 guest C file 하나만 바꾸는 작업이 아니다. 현재 guest
 - `apollo_iree_hexagon_plugin.h`의 v1 fixed queue API를 v2 generic executable,
   buffer, command-buffer, fence API로 확장하거나 새 plugin ABI로 대체한다.
 - `configs/buildroot/external/apollo_qbox/package/iree-runtime/iree-runtime.mk`가
-  `apollo-hexagon` external HAL driver를 link하도록 build option을 추가한다.
+  source-built IREE runner를 `/usr/libexec/qbox/iree-run-module.real`에 보존하고,
+  `/usr/bin/iree-run-module` wrapper와 repo-local `apollo-iree-run-module`,
+  `libapollo_iree_hexagon_hal_plugin.so`를 rootfs 기본 경로에 설치하도록 한다.
+  이 wrapper 경로는 Apollo query/dispatch transition evidence이며, upstream
+  IREE HAL driver 등록 완료 증거로 사용하지 않는다.
 - `scripts/build_apollo_hexagon_guest_tools.sh`는 transition runner와 v2 HAL
   driver artifact를 모두 빌드하거나, 최종적으로 v2 HAL driver만 빌드하도록
   단계화한다.
@@ -262,8 +266,8 @@ UMD 전환은 guest C file 하나만 바꾸는 작업이 아니다. 현재 guest
   `scripts/run_iree_mnist_host_smoke.sh`가 만든 MNIST-shaped AArch64 VMFB를 base로
   쓰고, metadata에는 host ONNX graph와 Apollo payload가 같은
   `1x10xf32=[0 1 2 3 4 5 6 7 8 9]` output contract를 공유한다는 marker를 남긴다.
-- Buildroot rootfs에는 `iree-run-module`, `apollo-hexagon` HAL driver/plugin,
-  APKO sample, v2 smoke wrapper를 명시적으로 포함한다.
+- Buildroot rootfs에는 source-built `iree-run-module.real`, Apollo repo-local
+  registry frontend/plugin, APKO sample, v2 smoke wrapper를 명시적으로 포함한다.
 - transition 기간에는 기존 `apollo-iree-hexagon-runner`를 compat lane으로 남기되,
   generic smoke는 `iree-run-module --device=apollo-hexagon://0`만 성공 조건으로
   본다.
