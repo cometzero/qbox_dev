@@ -2,6 +2,7 @@
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+smoke_out=${QBOX_IREE_MNIST_SMOKE_OUT:-"${repo_root}/build/verification/iree-mnist-host"}
 stage_dir=${QBOX_IREE_MNIST_GUEST_STAGE_DIR:-"${repo_root}/build/iree-guest-artifacts/mnist"}
 venv_dir=${QBOX_IREE_SMOKE_VENV:-"${repo_root}/build/iree-smoke-venv"}
 runtime_version=${QBOX_IREE_RUNTIME_VERSION:-3.11.0}
@@ -9,6 +10,9 @@ wheel_dir=${QBOX_IREE_AARCH64_WHEEL_DIR:-"${repo_root}/build/iree-aarch64-wheel"
 extract_dir=${QBOX_IREE_AARCH64_EXTRACT_DIR:-"${repo_root}/build/iree-aarch64-runtime-extract"}
 hexagon_tools_dir=${QBOX_APOLLO_HEXAGON_TOOLS_OUT:-"${repo_root}/build/apollo-hexagon-guest-tools"}
 
+if [[ "${QBOX_IREE_MNIST_SKIP_HOST_SMOKE:-0}" != 1 ]]; then
+  "${repo_root}/scripts/run_iree_mnist_host_smoke.sh"
+fi
 "${repo_root}/scripts/build_apollo_hexagon_guest_tools.sh"
 
 if [[ ! -x "${venv_dir}/bin/python" ]]; then
@@ -62,6 +66,21 @@ if [[ ! -s "${runtime_bin}" ]]; then
 fi
 chmod 0755 "${runtime_bin}"
 
+required=(
+  "${smoke_out}/mnist.onnx"
+  "${smoke_out}/mnist.mlir"
+  "${smoke_out}/mnist_cpu.vmfb"
+  "${smoke_out}/mnist_aarch64.vmfb"
+  "${smoke_out}/reference.json"
+  "${smoke_out}/report.json"
+)
+for path in "${required[@]}"; do
+  if [[ ! -s "${path}" ]]; then
+    echo "missing generated IREE MNIST artifact: ${path}" >&2
+    exit 1
+  fi
+done
+
 rm -rf "${stage_dir}"
 install -d "${stage_dir}/bin" "${stage_dir}/lib"
 install -m 0755 "${runtime_bin}" "${stage_dir}/bin/iree-run-module.real"
@@ -71,6 +90,11 @@ install -m 0755 "${hexagon_tools_dir}/bin/apollo-iree-hexagon-runner" \
   "${stage_dir}/bin/apollo-iree-hexagon-runner"
 install -m 0755 "${hexagon_tools_dir}/lib/libapollo_iree_hexagon_hal_plugin.so" \
   "${stage_dir}/lib/libapollo_iree_hexagon_hal_plugin.so"
+install -m 0644 "${smoke_out}/mnist.onnx" "${stage_dir}/mnist.onnx"
+install -m 0644 "${smoke_out}/mnist.mlir" "${stage_dir}/mnist.mlir"
+install -m 0644 "${smoke_out}/mnist_aarch64.vmfb" "${stage_dir}/mnist_aarch64.vmfb"
+install -m 0644 "${smoke_out}/reference.json" "${stage_dir}/reference.json"
+install -m 0644 "${smoke_out}/report.json" "${stage_dir}/host-report.json"
 
 "${venv_dir}/bin/python" - "${stage_dir}" <<'PY'
 from pathlib import Path
@@ -92,7 +116,7 @@ apko = struct.pack(
     input_bytes, output_bytes, *reserved,
 )
 (stage / "mnist.apko").write_bytes(apko)
-(stage / "mnist_stub.vmfb").write_bytes(b"APOLLO-MNIST-LIKE-STUB\n")
+module = (stage / "mnist_aarch64.vmfb").read_bytes()
 footer = struct.pack(
     "<8I",
     0x4F4B4156,
@@ -104,13 +128,11 @@ footer = struct.pack(
     output_bytes,
     0,
 )
-(stage / "mnist_apollo.vmfb").write_bytes(
-    b"APOLLO-MNIST-LIKE-STUB\n" + apko + footer
-)
+(stage / "mnist_apollo.vmfb").write_bytes(module + apko + footer)
 PY
 
 cat > "${stage_dir}/apollo_hexagon_apko.vmfb.meta" <<'META'
-module=mnist_stub.vmfb
+module=mnist_aarch64.vmfb
 entry=mnist_graph
 device=apollo-hexagon
 expected=4xi32=0xfffffffe 0xfffffffd 0xfffffffc 0xfffffffb
@@ -124,7 +146,10 @@ apko=mnist.apko
 apko_entry_kind=mnist
 apko_input_bytes=64
 apko_output_bytes=16
-model_stub=mnist-like-byte-invert
+host_onnx_compile=mnist-shaped-flatten-gemm
+host_expected=1x10xf32=[0 1 2 3 4 5 6 7 8 9]
+apollo_payload_stub=mnist-like-byte-invert
+semantic_gap=apollo-payload-does-not-yet-execute-host-onnx-graph
 META
 
 cat > "${stage_dir}/bin/iree-run-module" <<'GUEST'
@@ -187,7 +212,7 @@ exec "${runner}" \
   --device=apollo-hexagon \
   --metadata="${self_dir}/apollo_hexagon_apko.vmfb.meta" \
   --executable_plugin="${self_dir}/lib/libapollo_iree_hexagon_hal_plugin.so" \
-  --module="${self_dir}/mnist_stub.vmfb" \
+  --module="${self_dir}/mnist_aarch64.vmfb" \
   --function=mnist_graph \
   --input='4xi32=[1 2 3 4]' \
   "$@"
@@ -232,8 +257,17 @@ except Exception as exc:
 manifest = {
     "name": "apollo-qbox-iree-mnist-like-guest-artifacts",
     "status": "staged",
+    "target": "aarch64-unknown-linux-gnu llvm-cpu local-task base VMFB",
     "guest_install_path": "/opt/qbox/iree/mnist",
     "expected_output": "4xi32=0xfffffffe 0xfffffffd 0xfffffffc 0xfffffffb",
+    "host_compile": {
+        "source_model": "mnist.onnx",
+        "mlir": "mnist.mlir",
+        "aarch64_vmfb": "mnist_aarch64.vmfb",
+        "report": "host-report.json",
+        "expected_output": "1x10xf32=[0 1 2 3 4 5 6 7 8 9]",
+        "semantic_scope": "MNIST-shaped ONNX compile smoke, not trained accuracy",
+    },
     "runtime": {
         "source": "PyPI iree-base-runtime manylinux aarch64 wheel",
         "version": runtime_version,
@@ -255,7 +289,8 @@ manifest = {
         "input_bytes": 64,
         "output_bytes": 16,
         "command_buffer": "generic-submit",
-        "model_stub": "QBox MNIST-like byte-invert kernel; not a full MNIST ONNX compile",
+        "model_stub": "QBox MNIST-like byte-invert payload",
+        "semantic_gap": "Apollo payload does not yet execute the host ONNX graph semantics",
         "fence": "async-irq-poll",
     },
     "files": {str(p.relative_to(stage)): p.stat().st_size

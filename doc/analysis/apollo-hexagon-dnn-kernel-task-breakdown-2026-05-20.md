@@ -17,11 +17,12 @@ iree compile -> VMFB -> IREE runtime -> Apollo Hexagon UMD
 현재 구현은 APKO v0 sidecar/VMFB trailer, executable handle, generic submit,
 `GET_FAULT`, `QUERY_CAPS`, generic context, GEM SHMEM BO lifecycle, BO binding
 metadata foundation, 64-byte command BO `CMD_SUBMIT`, 그리고 VADD/CNN/MNIST-like
-`LOAD_EXECUTABLE -> DISPATCH(exec-slot)` smoke 준비까지 진행된 상태다. 그러나 아직
-DNN kernel 실행 구조의 최종 상태는 아니다. 남은 핵심은 BO binding을 실제
-hardware/SMMU mapping에 연결하고, full APKO code/payload 실행과 true MNIST ONNX
-compile/runtime semantics, upstream IREE VMFB HAL executable packaging을 완성하는
-것이다.
+`LOAD_EXECUTABLE -> DISPATCH(exec-slot)` smoke 준비, MNIST-shaped
+`ONNX -> MLIR -> host/AArch64 VMFB` compile evidence까지 진행된 상태다. 그러나
+아직 DNN kernel 실행 구조의 최종 상태는 아니다. 남은 핵심은 BO binding을 실제
+hardware/SMMU mapping에 연결하고, full APKO code/payload 실행과 Apollo payload가
+MNIST ONNX graph semantics를 실행하는 경로, upstream IREE VMFB HAL executable
+packaging을 완성하는 것이다.
 
 ## 계획 리뷰 반영 요약
 
@@ -103,8 +104,10 @@ compile/runtime semantics, upstream IREE VMFB HAL executable packaging을 완성
 3. 완료: QBox Apollo Hexagon DMA/firmware path를 byte-count fixed dispatcher에서 command
    packet parser로 전환한다.
 4. 부분 완료: APKO v0 metadata와 binding table을 VADD/CNN/MNIST-like command
-   packet으로 실행한다. 남은 작업은 true APKO code/payload execution과 true MNIST
-   ONNX 모델 실행이다.
+   packet으로 실행한다. MNIST-shaped ONNX compile artifact는 생성하지만, Apollo
+   payload semantics는 아직 byte-invert stub이다. 남은 작업은 true APKO
+   code/payload execution과 Apollo payload가 MNIST ONNX 모델 semantics를 실행하는
+   것이다.
 5. 부분 완료: Apollo IREE HAL UMD가 staged VMFB 안의 repo-local APKO trailer를
    읽어 driver v2로 submit할 수 있다. 남은 작업은 upstream IREE HAL executable
    section으로 APKO를 packaging하는 것이다.
@@ -293,6 +296,20 @@ git diff --check && git -C sources/linux diff --check
   MNIST-like kernel stub을 검증한다. 이는 true MNIST ONNX compile 결과가 아니라
   DNN kernel ABI 연결을 증명하는 transition artifact다.
 
+2026-05-21 계속 진행 상태:
+
+- `run_iree_mnist_host_smoke.sh`는 MNIST-shaped `Flatten+Gemm` ONNX graph를 만들고
+  `iree-import-onnx`, `iree-compile`로 host VMFB와 AArch64 VMFB를 생성한 뒤
+  `iree-run-module --device=local-task`에서 `1x10xf32=[0 1 2 3 4 5 6 7 8 9]`
+  reference를 검증한다.
+- `stage_iree_mnist_guest_artifacts.sh`는 더 이상 빈 stub VMFB를 base module로
+  쓰지 않고, 위 AArch64 VMFB에 repo-local APKO trailer를 붙여
+  `mnist_apollo.vmfb`를 만든다.
+- 단, APKO payload 자체는 여전히 deterministic byte-invert MNIST-like stub이며,
+  metadata에 `semantic_gap=apollo-payload-does-not-yet-execute-host-onnx-graph`를
+  남긴다. 따라서 이것은 ONNX compile artifact와 Apollo APKO transport를 연결하는
+  전환 단계이지, Apollo가 MNIST ONNX semantics를 실행했다는 완료 증거는 아니다.
+
 세부 태스크:
 
 | ID | 태스크 | 선행 조건 | 완료 기준 |
@@ -394,6 +411,7 @@ QBOX_IREE_VECTOR_ADD_SKIP_HOST_SMOKE=1 \
 | --- | --- | --- | --- |
 | L4-1 | compat/generic marker 분리 유지 | 모든 lane | checker가 fixed ioctl pass와 generic v2 pass를 별도 항목으로 출력한다. |
 | L4-2 | unsupported ONNX op negative 분류 | IREE compiler tool 존재 또는 missing-tool gate | tool 미설치면 `blocked_missing_tool`, 설치 후에는 compile-time reject evidence를 남긴다. |
+| L4-5 | MNIST-shaped ONNX compile artifact 증거 | host IREE/ONNX tool 또는 venv install 가능 | `run_iree_mnist_host_smoke.sh`가 ONNX, MLIR, host VMFB, AArch64 VMFB, host run report를 생성하고 stage script가 그 VMFB를 APKO trailer base로 사용한다. |
 | L4-3 | 완료: BO binding/CMD_SUBMIT happy path smoke 추가 | L1-3, L3-3 | APKO VADD/CNN smoke log가 BO bind, command BO submit, output BO copy marker를 요구한다. |
 | L4-4 | 완료: VMFB-embedded APKO smoke 추가 | L3-4 | VADD/CNN smoke가 sidecar artifact 없이 VMFB path를 사용했음을 로그로 증명한다. |
 
@@ -420,6 +438,13 @@ QBOX_IREE_VECTOR_ADD_SKIP_HOST_SMOKE=1 \
   계약을 추적한다.
 - 남은 blocker 표현은 MNIST Linux/UMD binding이 아니라 true MNIST ONNX compile 및
   runtime semantics로 좁힌다.
+
+2026-05-21 계속 진행:
+
+- readiness/check_buildroot/APKO-VMFB checker가 MNIST-shaped ONNX host compile
+  script와 `mnist_aarch64.vmfb` staging 계약을 추적한다.
+- 남은 blocker 표현은 "ONNX compile artifact 없음"이 아니라 "Apollo payload가
+  아직 host ONNX graph semantics를 실행하지 않음"으로 더 좁힌다.
 
 완료 기준:
 
@@ -509,6 +534,9 @@ Cross-lane contract gates:
 
 - VMFB-driven VADD smoke가 Apollo Hexagon hardware path에서 통과한다.
 - CNN 또는 MNIST smoke가 VMFB-driven APKO dispatch로 통과한다.
+- MNIST의 경우 host-side `ONNX -> MLIR -> VMFB` compile artifact와 Apollo APKO
+  payload semantics가 같은 graph를 대표한다는 증거가 있어야 한다. 현재는
+  compile artifact만 있고 Apollo payload는 stub이므로 미완료다.
 - driver v2는 context, BO binding, executable, command submit, wait/fence,
   fault retrieval을 모두 제공한다.
 - QBox command queue path가 fixed byte-count dispatcher 없이 generic dispatch를

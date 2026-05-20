@@ -46,6 +46,20 @@ def which(name: str) -> str | None:
     return shutil.which(name)
 
 
+def venv_dir(repo: Path) -> Path:
+    return Path(os.environ.get("QBOX_IREE_SMOKE_VENV", repo / "build/iree-smoke-venv"))
+
+
+def tool_path(repo: Path, name: str) -> str | None:
+    path = which(name)
+    if path is not None:
+        return path
+    venv_tool = venv_dir(repo) / "bin" / name
+    if os_access_executable(venv_tool):
+        return str(venv_tool)
+    return None
+
+
 def os_access_executable(path: Path) -> bool:
     return path.exists() and path.is_file() and os.access(path, os.X_OK)
 
@@ -53,6 +67,21 @@ def os_access_executable(path: Path) -> bool:
 def module_available(name: str) -> bool:
     proc = subprocess.run(
         [sys.executable, "-c", f"import {name}"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    return proc.returncode == 0
+
+
+def module_available_for_repo(repo: Path, name: str) -> bool:
+    if module_available(name):
+        return True
+    venv_python = venv_dir(repo) / "bin" / "python"
+    if not os_access_executable(venv_python):
+        return False
+    proc = subprocess.run(
+        [str(venv_python), "-c", f"import {name}"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         check=False,
@@ -184,6 +213,7 @@ def repo_checks(repo: Path) -> list[Check]:
 
     host_smoke_script = repo / "scripts/run_iree_tiny_cnn_host_smoke.sh"
     vector_add_host_smoke_script = repo / "scripts/run_iree_vector_add_host_smoke.sh"
+    mnist_host_smoke_script = repo / "scripts/run_iree_mnist_host_smoke.sh"
     guest_stage_script = repo / "scripts/stage_iree_tiny_cnn_guest_artifacts.sh"
     vector_add_guest_stage_script = repo / "scripts/stage_iree_vector_add_guest_artifacts.sh"
     mnist_guest_stage_script = repo / "scripts/stage_iree_mnist_guest_artifacts.sh"
@@ -223,10 +253,11 @@ def repo_checks(repo: Path) -> list[Check]:
     add(checks, "repo_iree_hexagon_mlir_sidecar_metadata", has(hexagon_hal_h, r"compiler_artifact_path") and has(hexagon_hal, r"compiler_artifact=") and has(hexagon_runner, r"compiler bridge=%s") and has(hexagon_run_module, r"compiler bridge=%s") and has(guest_stage_script, r"QBOX_HEXAGON_MLIR_ARTIFACT") and has(vector_add_guest_stage_script, r"QBOX_HEXAGON_MLIR_ARTIFACT"), "Apollo IREE metadata can carry and log a Hexagon-MLIR artifact sidecar without claiming generic object execution", "hexagon_mlir_bridge")
     add(checks, "repo_iree_hexagon_guest_smoke_script", hexagon_smoke_script.is_file() and os_access_executable(hexagon_smoke_script) and has(hexagon_smoke_script, r"SG DMA stress ok queue=0") and has(hexagon_smoke_script, r"bytes=131072 segments=8") and has(hexagon_smoke_script, r"async irq pending queue=1") and has(hexagon_smoke_script, r"fence=async-irq-poll"), "repo-local QBox guest smoke script verifies Hexagon offload, >64KB SG DMA, async fences, and SMMU markers with UART-interleave-tolerant markers", "hexagon_productization")
     add(checks, "repo_iree_vector_add_host_smoke_script", vector_add_host_smoke_script.is_file() and os_access_executable(vector_add_host_smoke_script) and has(vector_add_host_smoke_script, r"vector_add_graph") and has(vector_add_host_smoke_script, r"4xf32=11 22 33 44"), "repo-local host smoke script generates ONNX vector Add, compiles host/AArch64 VMFBs, and verifies IREE runtime output", "hexagon_vector_add")
+    add(checks, "repo_iree_mnist_host_smoke_script", mnist_host_smoke_script.is_file() and os_access_executable(mnist_host_smoke_script) and has(mnist_host_smoke_script, r"mnist_graph") and has(mnist_host_smoke_script, r"1x10xf32=\[0 1 2 3 4 5 6 7 8 9\]") and has(mnist_host_smoke_script, r"iree-llvmcpu-target-triple=aarch64-unknown-linux-gnu"), "repo-local host smoke script generates a MNIST-shaped ONNX graph, compiles host/AArch64 VMFBs, and verifies IREE runtime output while keeping Apollo payload semantics separate", "hexagon_apko_generic")
     add(checks, "repo_iree_vector_add_guest_stage_script", vector_add_guest_stage_script.is_file() and os_access_executable(vector_add_guest_stage_script) and has(vector_add_guest_stage_script, r"QBOX_IREE_VECTOR_ADD_GUEST_STAGE_DIR") and has(vector_add_guest_stage_script, r"run_vector_add_hexagon_guest\.sh"), "repo-local staging script packages vector-add VMFB, IREE runtime wrapper, and Apollo Hexagon HAL plugin for /opt/qbox/iree/vector-add", "hexagon_vector_add")
     add(checks, "repo_iree_vector_add_hexagon_smoke_script", vector_add_hexagon_smoke_script.is_file() and os_access_executable(vector_add_hexagon_smoke_script) and has(vector_add_hexagon_smoke_script, r"accelerator vector add ok") and has(vector_add_hexagon_smoke_script, r"EXEC @vector_add_graph \[apollo-hexagon\]"), "repo-local QBox guest smoke script verifies vector-add execution through iree-run-module --device=apollo-hexagon and SMMU-translated DMA markers", "hexagon_vector_add")
     add(checks, "repo_apko_generic_smoke_scripts", apko_vector_add_hexagon_smoke_script.is_file() and os_access_executable(apko_vector_add_hexagon_smoke_script) and has(apko_vector_add_hexagon_smoke_script, r"run_vector_add_apko_hexagon_guest\.sh") and has(apko_vector_add_hexagon_smoke_script, r"APKO CMD_SUBMIT VADD ok") and has(apko_vector_add_hexagon_smoke_script, r"command load executable slot=1 kind=2") and has(apko_vector_add_hexagon_smoke_script, r"generic_abi_version=1") and apko_tiny_cnn_hexagon_smoke_script.is_file() and os_access_executable(apko_tiny_cnn_hexagon_smoke_script) and has(apko_tiny_cnn_hexagon_smoke_script, r"run_tiny_cnn_apko_hexagon_guest\.sh") and has(apko_tiny_cnn_hexagon_smoke_script, r"APKO CMD_SUBMIT CNN ok") and has(apko_tiny_cnn_hexagon_smoke_script, r"generic_abi_version=1"), "repo-local APKO generic smoke scripts run APKO metadata through executable create, VADD/CNN command BO LOAD_EXECUTABLE plus executable-slot dispatch, query-caps, and APKO completion markers", "hexagon_apko_generic")
-    add(checks, "repo_apko_mnist_cmdq_smoke_script", mnist_guest_stage_script.is_file() and os_access_executable(mnist_guest_stage_script) and has(mnist_guest_stage_script, r"QBOX_IREE_MNIST_GUEST_STAGE_DIR") and has(mnist_guest_stage_script, r"run_mnist_apko_hexagon_guest\.sh") and has(mnist_guest_stage_script, r"apko_entry_kind=mnist") and apko_mnist_hexagon_smoke_script.is_file() and os_access_executable(apko_mnist_hexagon_smoke_script) and has(apko_mnist_hexagon_smoke_script, r"APKO CMD_SUBMIT MNIST ok") and has(apko_mnist_hexagon_smoke_script, r"command load executable slot=1 kind=3") and has(hexagon_guest_uapi, r"APOLLO_HEXAGON_EXEC_KIND_MNIST") and has(hexagon_hal, r"mnist_graph") and has(hexagon_run_module, r"mnist_graph") and has(post_build, r"QBOX_IREE_MNIST_GUEST_ARTIFACTS_DIR"), "repo-local APKO MNIST-like smoke stages a deterministic model-kernel APKO and routes it through Linux/UMD CMD_SUBMIT with LOAD_EXECUTABLE plus executable-slot dispatch", "hexagon_apko_generic")
+    add(checks, "repo_apko_mnist_cmdq_smoke_script", mnist_guest_stage_script.is_file() and os_access_executable(mnist_guest_stage_script) and has(mnist_guest_stage_script, r"QBOX_IREE_MNIST_GUEST_STAGE_DIR") and has(mnist_guest_stage_script, r"run_iree_mnist_host_smoke\.sh") and has(mnist_guest_stage_script, r"mnist_aarch64\.vmfb") and has(mnist_guest_stage_script, r"host-report\.json") and has(mnist_guest_stage_script, r"semantic_gap=apollo-payload-does-not-yet-execute-host-onnx-graph") and has(mnist_guest_stage_script, r"run_mnist_apko_hexagon_guest\.sh") and has(mnist_guest_stage_script, r"apko_entry_kind=mnist") and apko_mnist_hexagon_smoke_script.is_file() and os_access_executable(apko_mnist_hexagon_smoke_script) and has(apko_mnist_hexagon_smoke_script, r"APKO CMD_SUBMIT MNIST ok") and has(apko_mnist_hexagon_smoke_script, r"command load executable slot=1 kind=3") and has(hexagon_guest_uapi, r"APOLLO_HEXAGON_EXEC_KIND_MNIST") and has(hexagon_hal, r"mnist_graph") and has(hexagon_run_module, r"mnist_graph") and has(post_build, r"QBOX_IREE_MNIST_GUEST_ARTIFACTS_DIR"), "repo-local APKO MNIST-like smoke stages a real MNIST-shaped ONNX compile artifact as the VMFB base, then routes the separate deterministic Apollo payload stub through Linux/UMD CMD_SUBMIT with LOAD_EXECUTABLE plus executable-slot dispatch", "hexagon_apko_generic")
     add(checks, "repo_apko_vmfb_embedded_smoke_script", apko_vector_add_vmfb_hexagon_smoke_script.is_file() and os_access_executable(apko_vector_add_vmfb_hexagon_smoke_script) and has(apko_vector_add_vmfb_hexagon_smoke_script, r"run_vector_add_vmfb_apko_hexagon_guest\.sh") and has(apko_vector_add_vmfb_hexagon_smoke_script, r"executable_source=vmfb-embedded-apko") and has(apko_vector_add_vmfb_hexagon_smoke_script, r"APKO CMD_SUBMIT VADD ok") and apko_tiny_cnn_vmfb_hexagon_smoke_script.is_file() and os_access_executable(apko_tiny_cnn_vmfb_hexagon_smoke_script) and has(apko_tiny_cnn_vmfb_hexagon_smoke_script, r"run_tiny_cnn_vmfb_apko_hexagon_guest\.sh") and has(apko_tiny_cnn_vmfb_hexagon_smoke_script, r"executable_source=vmfb-embedded-apko") and has(apko_tiny_cnn_vmfb_hexagon_smoke_script, r"APKO CMD_SUBMIT CNN ok"), "repo-local APKO VADD/CNN smoke can verify VMFB-embedded APKO loading without .vmfb.meta sidecar metadata", "hexagon_apko_generic")
     add(checks, "linux_driver_cmdq_model_submit", has(driver_header, r"APOLLO_HEXAGON_REG_CMDQ_DOORBELL") and has(hexagon_kernel_uapi, r"APOLLO_HEXAGON_CMDQ_OPCODE_DISPATCH") and has(hexagon_kernel_uapi, r"APOLLO_HEXAGON_CMDQ_OPCODE_LOAD_EXECUTABLE") and has(hexagon_kernel_uapi, r"APOLLO_HEXAGON_CMDQ_DISPATCH_EXEC_SLOT_FLAG") and has(hexagon_kernel_uapi, r"APOLLO_HEXAGON_CMDQ_DISPATCH_KIND_CNN") and has(hexagon_kernel_uapi, r"APOLLO_HEXAGON_CMDQ_DISPATCH_KIND_VADD") and has(hexagon_kernel_uapi, r"APOLLO_HEXAGON_CMDQ_DISPATCH_KIND_MNIST") and has(driver, r"max_command_bytes = APOLLO_HEXAGON_CMDQ_SUBMIT_MAX_BYTES") and has(driver, r"max_bindings_per_dispatch = 2") and has(driver_exec, r"apollo_hexagon_write_cmdq_dispatch_vadd") and has(driver_exec, r"apollo_hexagon_write_cmdq_dispatch_packet") and has(driver_exec, r"APOLLO_HEXAGON_REG_CMDQ_DOORBELL") and has(driver_exec, r"command BO LOAD_EXECUTABLE slot=") and has(driver_exec, r"command BO bound %s dispatch") and has(apko_vector_add_hexagon_smoke_script, r"APKO CMD_SUBMIT VADD ok") and has(apko_tiny_cnn_hexagon_smoke_script, r"APKO CMD_SUBMIT CNN ok") and has(apko_mnist_hexagon_smoke_script, r"APKO CMD_SUBMIT MNIST ok"), "Linux APKO VADD/CNN/MNIST generic submit can program a bounded command buffer with LOAD_EXECUTABLE plus DISPATCH, and the command BO path consumes two BO bindings before ringing the CMDQ doorbell", "hexagon_apko_generic")
     add(checks, "repo_apko_negative_smoke_script", apko_negative_hexagon_smoke_script.is_file() and os_access_executable(apko_negative_hexagon_smoke_script) and hexagon_apko_negative.is_file() and has(hexagon_apko_negative, r"bad context ABI version") and has(hexagon_apko_negative, r"context create/destroy ok") and has(hexagon_apko_negative, r"bad BO size") and has(hexagon_apko_negative, r"BO create/destroy ok") and has(hexagon_apko_negative, r"bad BO bind size") and has(hexagon_apko_negative, r"bad BO unbind size") and has(hexagon_apko_negative, r"BO bind/unbind ok") and has(hexagon_apko_negative, r"bad command BO submit size") and has(hexagon_apko_negative, r"command BO submit signal-fence ok") and has(hexagon_apko_negative, r"command BO bad LOAD_EXECUTABLE fault ok") and has(hexagon_apko_negative, r"DRM_IOCTL_APOLLO_HEXAGON_CMD_SUBMIT") and has(hexagon_apko_negative, r"bad WAIT size") and has(hexagon_apko_negative, r"WAIT completed fence") and has(hexagon_apko_negative, r"future WAIT fence") and has(hexagon_apko_negative, r"bad APKO ABI version") and has(hexagon_apko_negative, r"invalid input pointer") and has(hexagon_apko_negative, r"destroyed executable handle") and has(hexagon_apko_negative, r"empty fault record") and has(hexagon_apko_negative, r"DRM_IOCTL_APOLLO_HEXAGON_QUERY_CAPS") and has(hexagon_apko_negative, r"DRM_IOCTL_APOLLO_HEXAGON_CONTEXT_CREATE") and has(hexagon_apko_negative, r"DRM_IOCTL_APOLLO_HEXAGON_BO_CREATE") and has(hexagon_apko_negative, r"DRM_IOCTL_APOLLO_HEXAGON_BO_BIND") and has(hexagon_apko_negative, r"DRM_IOCTL_APOLLO_HEXAGON_WAIT") and has(apko_negative_hexagon_smoke_script, r"generic_abi_version=1") and has(apko_negative_hexagon_smoke_script, r"context create/destroy ok") and has(apko_negative_hexagon_smoke_script, r"BO create/destroy ok") and has(apko_negative_hexagon_smoke_script, r"bad BO unbind size") and has(apko_negative_hexagon_smoke_script, r"BO bind/unbind ok") and has(apko_negative_hexagon_smoke_script, r"command BO bad LOAD_EXECUTABLE fault ok") and has(apko_negative_hexagon_smoke_script, r"WAIT completed fence") and has(apko_negative_hexagon_smoke_script, r"APKO negative ioctl coverage completed") and has(vector_add_guest_stage_script, r"run_apko_negative_hexagon_guest\.sh"), "repo-local APKO negative smoke covers query-caps, context create/destroy ABI, BO create/destroy/bind ABI, command BO submit including malformed LOAD_EXECUTABLE, WAIT completion/timeout ABI, invalid APKO headers, wrong command sizes, bad user pointers, queue mismatch, stale executable handles, and empty fault retrieval", "hexagon_apko_generic")
@@ -249,13 +280,16 @@ def repo_checks(repo: Path) -> list[Check]:
     return checks
 
 
-def host_checks() -> list[Check]:
+def host_checks(repo: Path) -> list[Check]:
     checks: list[Check] = []
-    add(checks, "iree_import_onnx_tool", which("iree-import-onnx") is not None, f"tool={which('iree-import-onnx')}", "host_smoke")
-    add(checks, "iree_compile_tool", which("iree-compile") is not None, f"tool={which('iree-compile')}", "host_smoke")
-    add(checks, "iree_run_module_tool", which("iree-run-module") is not None, f"tool={which('iree-run-module')}", "host_smoke")
-    add(checks, "python_onnx", module_available("onnx"), "python module onnx import", "host_smoke")
-    add(checks, "python_numpy", module_available("numpy"), "python module numpy import", "host_smoke")
+    iree_import_onnx = tool_path(repo, "iree-import-onnx")
+    iree_compile = tool_path(repo, "iree-compile")
+    iree_run_module = tool_path(repo, "iree-run-module")
+    add(checks, "iree_import_onnx_tool", iree_import_onnx is not None, f"tool={iree_import_onnx}", "host_smoke")
+    add(checks, "iree_compile_tool", iree_compile is not None, f"tool={iree_compile}", "host_smoke")
+    add(checks, "iree_run_module_tool", iree_run_module is not None, f"tool={iree_run_module}", "host_smoke")
+    add(checks, "python_onnx", module_available_for_repo(repo, "onnx"), "python module onnx import", "host_smoke")
+    add(checks, "python_numpy", module_available_for_repo(repo, "numpy"), "python module numpy import", "host_smoke")
     return checks
 
 
@@ -274,7 +308,7 @@ def main() -> int:
     args = parser.parse_args()
 
     repo = args.repo.resolve()
-    checks = repo_checks(repo) + host_checks()
+    checks = repo_checks(repo) + host_checks(repo)
     payload = {
         "repo": str(repo),
         "summary": summarize(checks),
@@ -285,7 +319,7 @@ def main() -> int:
             "smmu_dma_model": "functional_smmuv3_ready: dynamic map/unmap/clear registers, page-table walk observability, ATS/PRI/fault queue status, and translated TLM splitting support >64KB SG stress",
             "upstream_iree_hal_driver": "functional_registry_slice: repo-local iree-run-module dispatch now routes --device=apollo-hexagon through an upstream-style HAL registry frontend that dynamically dlopens/registers the Apollo Hexagon C HAL plugin; upstream IREE source checkout is configured under sources/iree while Apollo HAL build/registry integration remains pending",
             "hexagon_mlir_bridge": "adapter_slice: direct Hexagon-MLIR object execution still needs a real compiler object backend, but the repo now has an APKO v0 executable-handle/generic-submit bridge for staged vector-add and tiny-CNN artifacts",
-            "apollo_apko_generic_smoke": "generic_submit_slice_ready: APKO v0 metadata, Linux context, GEM BO lifecycle, BO binding metadata, VADD/CNN/MNIST-like binding-table command BO submit, WAIT ioctls, invalid-IOVA GET_FAULT positive coverage, QBox command queue/fault registers, a QBox NOP/COPY/BARRIER/SIGNAL_FENCE packet execution subset, component-tested LOAD_EXECUTABLE metadata slots, executable-slot DISPATCH/VADD/CNN/MNIST-like packet execution, deterministic QBox CNN/MNIST-like CMDQ model-kernel stubs, Linux APKO VADD/CNN/MNIST-like CMDQ programming, executable create/destroy ioctls, legacy generic submit and fault retrieval ioctls, guest HAL APKO loader, staged VMFB-embedded APKO trailer loading, APKO VADD/CNN/MNIST-like smoke scripts, and APKO negative ioctl smoke coverage exist; true hardware BO mapping, full APKO code execution, true MNIST ONNX compile/runtime semantics, and upstream VMFB HAL executable target backend packaging remain pending",
+            "apollo_apko_generic_smoke": "generic_submit_slice_ready: APKO v0 metadata, Linux context, GEM BO lifecycle, BO binding metadata, VADD/CNN/MNIST-like binding-table command BO submit, WAIT ioctls, invalid-IOVA GET_FAULT positive coverage, QBox command queue/fault registers, a QBox NOP/COPY/BARRIER/SIGNAL_FENCE packet execution subset, component-tested LOAD_EXECUTABLE metadata slots, executable-slot DISPATCH/VADD/CNN/MNIST-like packet execution, deterministic QBox CNN/MNIST-like CMDQ model-kernel stubs, Linux APKO VADD/CNN/MNIST-like CMDQ programming, executable create/destroy ioctls, legacy generic submit and fault retrieval ioctls, guest HAL APKO loader, staged VMFB-embedded APKO trailer loading, APKO VADD/CNN/MNIST-like smoke scripts, MNIST-shaped ONNX host compile artifacts, and APKO negative ioctl smoke coverage exist; true hardware BO mapping, full APKO code execution, Apollo execution of the MNIST ONNX graph semantics, and upstream VMFB HAL executable target backend packaging remain pending",
             "architectural_smmuv3_model": "compliance_slice_advanced: current model includes STE/CD fetch, a descriptor-backed 4KB-granule 4-level page-table probe, architected ATS/PRI response accounting, and a negative fault replay suite; full bit-exact ARM SMMUv3 register/protocol coverage remains upstream-scale work",
         },
     }

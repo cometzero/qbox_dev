@@ -41,6 +41,16 @@ def executable(path: Path) -> bool:
     return path.is_file() and os.access(path, os.X_OK)
 
 
+def venv_dir(repo: Path) -> Path:
+    return Path(os.environ.get("QBOX_IREE_SMOKE_VENV", repo / "build/iree-smoke-venv"))
+
+
+def tool_available(repo: Path, name: str) -> bool:
+    if shutil.which(name) is not None:
+        return True
+    return executable(venv_dir(repo) / "bin" / name)
+
+
 def add(checks: list[Check], name: str, ok: bool, detail: str) -> None:
     checks.append(Check(name=name, status="pass" if ok else "fail", detail=detail))
 
@@ -211,12 +221,16 @@ def repo_checks(repo: Path) -> list[Check]:
         and require_markers(
             mnist_stage,
             (
+                "run_iree_mnist_host_smoke.sh",
+                "mnist_aarch64.vmfb",
+                "host-report.json",
+                "semantic_gap=apollo-payload-does-not-yet-execute-host-onnx-graph",
                 "mnist_apollo.vmfb",
                 "run_mnist_apko_hexagon_guest.sh",
                 "apko_entry_kind=mnist",
             ),
         ),
-        "staging scripts package VMFB-embedded APKO artifacts and negative runner wrappers",
+        "staging scripts package VMFB-embedded APKO artifacts, the MNIST ONNX compile base, and negative runner wrappers",
     )
     add(
         checks,
@@ -285,7 +299,7 @@ def repo_checks(repo: Path) -> list[Check]:
     add(
         checks,
         "unsupported_onnx_negative_tool_gate",
-        shutil.which("iree-import-onnx") is not None and shutil.which("iree-compile") is not None,
+        tool_available(repo, "iree-import-onnx") and tool_available(repo, "iree-compile"),
         "blocked_missing_tool if IREE compiler/import tools are absent; install tools to run unsupported-ONNX compile rejection",
     )
     return checks

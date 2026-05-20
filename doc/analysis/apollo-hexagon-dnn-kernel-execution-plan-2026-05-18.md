@@ -206,6 +206,14 @@ VMFB footer를 찾아 APKO v0 payload를 추출한다. 이 경로는
 IREE compiler가 HAL executable section에 APKO를 packaging했다는 뜻이 아니며,
 그 target backend packaging은 별도 남은 작업이다.
 
+2026-05-21 계속 진행으로 MNIST lane은 빈 stub VMFB 대신 host에서 생성한
+MNIST-shaped `ONNX -> MLIR -> host/AArch64 VMFB` compile 산물을 base VMFB로
+staging한다. 이 VMFB 뒤에 repo-local APKO trailer를 붙여
+`mnist_apollo.vmfb`를 만들지만, APKO payload 자체는 아직 deterministic byte-invert
+stub이다. 따라서 이 단계는 ONNX compile artifact와 Apollo APKO transport를
+연결하는 전환 증거이며, Apollo가 MNIST ONNX graph semantics를 실행한다는 완료
+증거는 아니다.
+
 ## Apollo IREE HAL UMD 재구성
 
 현재 guest shim은 `iree-run-module` 일부 option을 직접 parsing하고 fixed ioctl을
@@ -249,6 +257,10 @@ UMD 전환은 guest C file 하나만 바꾸는 작업이 아니다. 현재 guest
 - `scripts/stage_iree_tiny_cnn_guest_artifacts.sh`와
   `scripts/stage_iree_vector_add_guest_artifacts.sh`는 `.vmfb.meta` 중심 staging에서
   APKO/VMFB generic artifact staging으로 전환한다.
+- `scripts/stage_iree_mnist_guest_artifacts.sh`는
+  `scripts/run_iree_mnist_host_smoke.sh`가 만든 MNIST-shaped AArch64 VMFB를 base로
+  쓰고, metadata에는 host ONNX graph semantics와 Apollo byte-invert payload 사이의
+  gap을 명시한다.
 - Buildroot rootfs에는 `iree-run-module`, `apollo-hexagon` HAL driver/plugin,
   APKO sample, v2 smoke wrapper를 명시적으로 포함한다.
 - transition 기간에는 기존 `apollo-iree-hexagon-runner`를 compat lane으로 남기되,
