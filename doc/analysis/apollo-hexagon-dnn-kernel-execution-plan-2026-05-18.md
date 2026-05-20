@@ -1048,6 +1048,19 @@ review를 별도로 수행해야 한다.
   싣고, QBox/driver가 executable BO 또는 instruction stream으로 이를 소비하도록
   확장하는 것이다.
 
+2026-05-21 계속 진행:
+
+- APKO byte stream은 이제 `PAYL` descriptor 뒤에 `CODE` descriptor와 최소 code
+  word를 포함한다. UMD는 `PAYL` opcode, `CODE` word count, 첫 code word가 서로
+  일치하는지 검증하고, `LOAD_PAYLOAD` packet의 reserved word에 code word count와
+  entry word를 전달한다.
+- Linux driver scanner와 QBox command queue는 `LOAD_PAYLOAD`의 code word count가
+  0이거나 entry word가 payload opcode와 다르면 malformed payload로 처리한다.
+- 이 단계는 아직 instruction stream을 해석하지 않는다. 다만 "opcode descriptor만
+  전달"하던 상태에서 APKO code section 존재와 command packet binding을 검증하는
+  중간 ABI로 전진했다. 남은 단계는 이 code section을 실제 executable BO/code DMA
+  또는 interpreter 입력으로 소비하는 것이다.
+
 이 구조가 요청한 `iree compile -> VMFB -> IREE runtime -> Apollo Hexagon UMD
 -> Apollo Hexagon driver -> Apollo Hexagon hardware` 경로와 가장 잘 맞는다.
 driver는 graph runtime이 아니라 accelerator resource manager가 되고, DNN

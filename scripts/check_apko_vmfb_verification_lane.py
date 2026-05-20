@@ -134,6 +134,7 @@ def repo_checks(repo: Path) -> list[Check]:
                 "command-buffer=generic-submit",
                 "command load executable slot=1 kind=2",
                 "command load payload slot=1 opcode=2",
+                "code_words=1",
                 "command BO bound VADD dispatch",
                 "command BO bound VADD output copied",
                 "APKO CMD_SUBMIT VADD ok",
@@ -151,6 +152,7 @@ def repo_checks(repo: Path) -> list[Check]:
                 "command-buffer=generic-submit",
                 "generic_abi_version=1",
                 "command load payload slot=1 opcode=1",
+                "code_words=1",
                 "command dispatch executable slot=1 kind=1",
                 "command dispatch cnn",
                 "APKO CMD_SUBMIT CNN ok",
@@ -168,6 +170,7 @@ def repo_checks(repo: Path) -> list[Check]:
                 "command-buffer=generic-submit",
                 "generic_abi_version=1",
                 "command load payload slot=1 opcode=3",
+                "code_words=1",
                 "command dispatch executable slot=1 kind=3",
                 "command dispatch mnist",
                 "APKO CMD_SUBMIT MNIST ok",
@@ -211,6 +214,7 @@ def repo_checks(repo: Path) -> list[Check]:
             vector_stage,
             (
                 "vector_add_apollo.vmfb",
+                "0x45444F43",
                 "run_vector_add_vmfb_apko_hexagon_guest.sh",
                 "run_apko_negative_hexagon_guest.sh",
             ),
@@ -219,6 +223,7 @@ def repo_checks(repo: Path) -> list[Check]:
             tiny_stage,
             (
                 "tiny_cnn_apollo.vmfb",
+                "0x45444F43",
                 "run_tiny_cnn_vmfb_apko_hexagon_guest.sh",
                 "apollo_hexagon_apko.vmfb.meta",
             ),
@@ -228,6 +233,7 @@ def repo_checks(repo: Path) -> list[Check]:
             (
                 "run_iree_mnist_host_smoke.sh",
                 "mnist_aarch64.vmfb",
+                "0x45444F43",
                 "host-report.json",
                 "semantic_match=host-onnx-and-apollo-payload-produce-1x10xf32-bias-output",
                 "apko_input_bytes=3136",

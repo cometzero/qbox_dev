@@ -573,13 +573,32 @@ Cross-lane contract gates:
   descriptor가 없는 기존 APKO v0 artifact는 ABI 호환을 위해 legacy submit path로
   fallback하고, descriptor가 존재하지만 malformed이면 오류로 처리한다.
 - VADD, CNN, MNIST staging script는 48-byte APKO header 뒤에 16-byte `PAYL`
-  descriptor를 붙인다.
+  descriptor를 붙였고, 이어지는 추가 slice에서 `CODE` descriptor와 최소 code word를
+  붙이도록 확장했다.
 - negative coverage는 bad `LOAD_PAYLOAD` fault와 executable-slot-without-payload
   component test를 추가했다.
 
+## 2026-05-21 APKO CODE descriptor 진행 결과
+
+이번 반영은 full APKO interpreter 완료가 아니라, APKO byte stream에 code section
+존재를 강제하고 command packet에 code metadata를 싣는 중간 ABI다.
+
+- Linux/guest UAPI와 QBox model에 `APOLLO_HEXAGON_APKO_CODE_MAGIC`,
+  `APOLLO_HEXAGON_APKO_CODE_VERSION`, `APOLLO_HEXAGON_APKO_CODE_DESCRIPTOR_WORDS`
+  상수를 추가했다.
+- VADD, CNN, MNIST staging script는 APKO header 뒤에 `PAYL` descriptor,
+  `CODE` descriptor, 최소 1-word code payload를 붙인다. 현재 code word는 해당
+  payload opcode와 같으며, 실제 instruction stream은 아니다.
+- guest HAL은 `PAYL`만 있는 artifact를 malformed로 보고, `CODE` word count와
+  첫 code word가 payload opcode와 일치할 때만 `LOAD_PAYLOAD`를 제출한다.
+- Linux driver와 QBox command queue는 `LOAD_PAYLOAD` packet의 code word count와
+  entry word를 검증한다. QBox component test는 missing code words를 malformed
+  fault로 확인한다.
+
 남은 gap은 그대로 유지한다.
 
-- APKO payload는 아직 실제 Hexagon code blob/interpreter가 아니라 opcode descriptor다.
+- APKO payload는 이제 최소 code section 계약을 갖지만, 아직 실제 Hexagon code
+  blob/interpreter가 아니라 opcode word 기반 transition program이다.
 - command BO input/output은 여전히 Linux driver의 QBox shared-window copy shim을
   거친다. true hardware BO/SMMU/TBU page mapping은 별도 작업이다.
 - VMFB trailer는 repo-local transition ABI다. upstream IREE HAL executable section
