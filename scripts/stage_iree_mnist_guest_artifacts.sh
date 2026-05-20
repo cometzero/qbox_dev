@@ -161,19 +161,23 @@ stage_dir=$(CDPATH= cd -- "${self_dir}/.." && pwd)
 real_runner="${self_dir}/iree-run-module.real"
 apollo_runner="${self_dir}/apollo-iree-run-module"
 is_apollo=0
+has_query=0
 has_metadata=0
 prev=""
 
 for arg in "$@"; do
   if [ "${prev}" = "--device" ]; then
-    if [ "${arg}" = "apollo-hexagon" ]; then
+    if [ "${arg}" = "apollo-hexagon" ] || [ "${arg}" = "apollo-hexagon://0" ]; then
       is_apollo=1
     fi
     prev=""
     continue
   fi
   case "${arg}" in
-    --device=apollo-hexagon)
+    --list_drivers|--dump_devices)
+      has_query=1
+      ;;
+    --device=apollo-hexagon|--device=apollo-hexagon://0)
       is_apollo=1
       ;;
     --device)
@@ -185,7 +189,7 @@ for arg in "$@"; do
   esac
 done
 
-if [ "${is_apollo}" -eq 1 ]; then
+if [ "${is_apollo}" -eq 1 ] || [ "${has_query}" -eq 1 ]; then
   metadata_arg=""
   if [ "${has_metadata}" -eq 0 ] && [ -f "${stage_dir}/apollo_hexagon_apko.vmfb.meta" ]; then
     metadata_arg="--metadata=${stage_dir}/apollo_hexagon_apko.vmfb.meta"
@@ -277,6 +281,10 @@ manifest = {
     },
     "hexagon_offload": {
         "registry_frontend": "bin/apollo-iree-run-module",
+        "driver_query": "bin/iree-run-module --list_drivers; bin/iree-run-module --dump_devices --device=apollo-hexagon://0 --executable_plugin=lib/libapollo_iree_hexagon_hal_plugin.so",
+        "integration_status": "repo-local-registry-frontend",
+        "upstream_hal_driver": "not-linked",
+        "evidence_guard": "Do not report VMFB trailer APKO or wrapper dispatch evidence as upstream IREE HAL driver integration.",
         "runner": "bin/apollo-iree-hexagon-runner",
         "plugin": "lib/libapollo_iree_hexagon_hal_plugin.so",
         "device": "/dev/accel/accel0",

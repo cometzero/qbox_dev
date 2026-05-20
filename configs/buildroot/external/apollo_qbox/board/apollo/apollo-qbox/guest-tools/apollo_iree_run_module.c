@@ -27,6 +27,8 @@ struct options {
 	const char *module;
 	const char *function;
 	const char *input;
+	int list_drivers;
+	int dump_devices;
 	int skip_stress;
 	int stress_only;
 };
@@ -38,6 +40,7 @@ static void usage(const char *argv0)
 		"--function=tiny_cnn_graph|vector_add_graph|mnist_graph "
 		"[--metadata PATH] "
 		"[--executable_plugin PATH] [--apollo-device PATH] "
+		"[--list_drivers] [--dump_devices] "
 		"[--skip-stress] [--stress-only]\n",
 		argv0);
 }
@@ -123,6 +126,14 @@ static int parse_args(int argc, char **argv, struct options *opts)
 			return matched;
 		if (matched)
 			continue;
+		if (strcmp(argv[i], "--list_drivers") == 0) {
+			opts->list_drivers = 1;
+			continue;
+		}
+		if (strcmp(argv[i], "--dump_devices") == 0) {
+			opts->dump_devices = 1;
+			continue;
+		}
 		if (strcmp(argv[i], "--skip-stress") == 0) {
 			opts->skip_stress = 1;
 			continue;
@@ -134,6 +145,57 @@ static int parse_args(int argc, char **argv, struct options *opts)
 		usage(argv[0]);
 		return -EINVAL;
 	}
+	return 0;
+}
+
+static const char *apollo_device_name(const char *device_name)
+{
+	if (!device_name || !device_name[0])
+		return "apollo-hexagon";
+	if (strcmp(device_name, "apollo-hexagon://0") == 0)
+		return "apollo-hexagon";
+	return device_name;
+}
+
+static void print_hal_boundary_guard(void)
+{
+	printf("IREE Apollo Hexagon HAL: integration_status=repo-local-registry-frontend\n");
+	printf("IREE Apollo Hexagon HAL: upstream_hal_driver=not-linked\n");
+	printf("IREE Apollo Hexagon HAL: blocker=apollo-hexagon is not registered in the upstream IREE runtime HAL driver registry; VMFB APKO trailer evidence is transitional only\n");
+}
+
+static int handle_query_options(const struct options *opts)
+{
+	const struct apollo_iree_hal_device *device;
+	const char *device_name;
+	char error[256];
+
+	if (opts->list_drivers) {
+		printf("IREE HAL drivers:\n");
+		printf("  apollo-hexagon (Apollo QBox repo-local C HAL registry frontend)\n");
+		print_hal_boundary_guard();
+	}
+
+	if (!opts->dump_devices)
+		return 0;
+
+	device_name = apollo_device_name(opts->device_name);
+	device = apollo_iree_hal_registry_lookup(device_name, opts->plugin_path,
+						 error, sizeof(error));
+	if (!device) {
+		fprintf(stderr, "%s\n", error);
+		return 1;
+	}
+
+	printf("IREE Apollo Hexagon HAL: device[0]=apollo-hexagon://0\n");
+	printf("IREE Apollo Hexagon HAL: device=%s\n", device->name);
+	printf("IREE Apollo Hexagon HAL: description=%s\n",
+	       device->description);
+	printf("IREE Apollo Hexagon HAL: dynamically registered C HAL plugin=%s driver=%s api=%u\n",
+	       device->plugin_path, device->ops->name,
+	       device->ops->api_version);
+	print_hal_boundary_guard();
+	apollo_iree_hal_registry_unload_plugin();
 	return 0;
 }
 
@@ -173,6 +235,10 @@ int main(int argc, char **argv)
 			return 2;
 		return 1;
 	}
+
+	opts.device_name = apollo_device_name(opts.device_name);
+	if (opts.list_drivers || opts.dump_devices)
+		return handle_query_options(&opts);
 
 	ret = apollo_hexagon_load_executable(opts.metadata, opts.module, &exe,
 					       error, sizeof(error));
