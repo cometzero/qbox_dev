@@ -415,17 +415,41 @@ omx team 4:executor "Apollo Hexagon DNN generic execution을 완료한다. 기�
 
 ## 현재 Team 실행 상태
 
-현재 Codex App 셸은 tmux 밖에서 실행 중이며 `$TMUX`가 비어 있다. `omx team`
-skill의 직접 실행 조건은 tmux leader session이다. 따라서 이 셸에서 바로
-`omx team`을 실행하면 hook이 차단할 수 있다.
+2026-05-20 현재 이 문서는 `continue-apollo-hexag-e808b943` 팀의 live worker
+검토 결과를 반영한다. 작업 기준은 repository root `b07b60ce348a`,
+`sources/linux` gitlink `7f510a9e2872`, `sources/qbox` gitlink
+`b8875d31a71f`이다. 현재 worker-3 worktree에서는 `git submodule status`가
+`sources/linux`, `sources/qbox` 등 source submodule 앞에 `-`를 표시하므로
+submodule working tree는 아직 checkout되지 않았다. 따라서 source 내부 line-level
+code review와 build/smoke 재검증은 submodule init/update 이후 수행해야 하며,
+이번 worker-3 범위는 top-level docs/scripts/config evidence 기반의 lane assignment와
+contract review로 제한한다.
 
-가능한 진행 방식:
+현재 task 상태와 lane 배치는 다음과 같다. lane은 충돌을 줄이기 위해 소유 파일
+범위가 겹치지 않도록 잡는다.
 
-1. 사용자가 tmux/OMX leader session에서 위 launch command를 실행한다.
-2. 이 Codex 세션에서는 그 전까지 lane 1 또는 lane 4처럼 충돌이 적은 범위를
-   계속 구현하고 검증한다.
-3. detached tmux launch를 사용할 경우에도 leader pane, 작업자 pane, mailbox,
-   `omx team status <team>` evidence를 확인한 뒤에만 정상 생성으로 간주한다.
+| Team task | Worker | Primary lane | 소유/초점 | 완료 증거 |
+| --- | --- | --- | --- | --- |
+| task-1 `Implement` | worker-1 | Lane 1 + Lane 3 boundary | Linux driver v2 resource model과 UAPI를 구현한다. `sources/linux/**` 및 Linux UAPI가 주 범위이며, guest-tools/stage script는 worker-3 범위로 분리한다. | Linux build, UAPI 정합성, fixed compat smoke 보존. |
+| task-2 `Test` | worker-2 | Lane 4 verification | checker/smoke/readiness를 실행하고 missing tool 또는 uninitialized submodule은 `blocked_missing_prerequisite`로 분류한다. `build/verification/` 로그와 `doc/verification/` report가 주 범위다. | `git diff --check`, shell syntax/py_compile, `check_buildroot_arm64_lane.sh`, APKO positive/negative smoke 결과. |
+| task-3 `Review and document` | worker-3 | Lane 3 UMD/IREE + docs | `configs/buildroot/external/apollo_qbox/board/apollo/apollo-qbox/guest-tools/**`, `scripts/stage_iree_*guest_artifacts.sh`, `doc/analysis/**`에서 VMFB-embedded APKO load/unload와 generic submit bridge를 정리한다. Linux/QBox model file은 수정하지 않는다. | guest-tools/stage script build 또는 syntax evidence, 문서 diff, subagent review evidence, lifecycle result. |
+| task-4 `Additional work` | worker-4 | Lane 2 QBox command queue | `apollo_hexagon_dma` command queue/APKO payload semantics와 firmware contract를 worker-1 Linux/UMD 변경과 맞춘다. `sources/qbox/`와 firmware/component tests가 주 범위다. | QBox component build/test, firmware/platform build, APKO command queue smoke markers. |
+
+Cross-lane contract gates:
+
+- worker-1과 worker-4는 `LOAD_EXECUTABLE -> DISPATCH(exec-slot)` packet ABI,
+  fence/status/fault code layout, and `max_command_bytes` 값을 동시에 변경하지 않는다.
+  ABI 변경이 필요하면 worker-3이 guest-tools/stage script 계약을 갱신하고,
+  worker-2가 negative smoke를 추가한다.
+- worker-2는 fixed compatibility path와 generic v2 path를 반드시 별도 PASS/FAIL로
+  기록한다. `SUBMIT_CNN`/`SUBMIT_VADD` marker가 generic smoke 성공 근거로 섞이면
+  regression으로 본다.
+- worker-3 review는 QBox SMMUv3를 functional integration slice로만 표현한다.
+  bit-exact Arm SMMUv3 compliance 또는 upstream IREE HAL 통합 완료로 과장하지 않는다.
+- source submodule이 uninitialized인 worker worktree에서는 code-quality verdict를
+  최종 PASS로 쓰지 않는다. `git submodule update --init sources/linux sources/qbox`
+  또는 leader root의 initialized checkout evidence가 있어야 source-level review/build가
+  유효하다.
 
 ## 완료 판정
 
