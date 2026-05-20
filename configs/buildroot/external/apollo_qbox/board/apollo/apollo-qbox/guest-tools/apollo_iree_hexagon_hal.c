@@ -250,6 +250,7 @@ static int read_apko_payload_program(const void *data, size_t size,
 	uint32_t descriptor[APOLLO_HEXAGON_APKO_PAYLOAD_DESCRIPTOR_WORDS];
 	uint32_t code_desc[APOLLO_HEXAGON_APKO_CODE_DESCRIPTOR_WORDS];
 	const unsigned char *bytes = data;
+	uint32_t code_entry_kind;
 	size_t code_desc_offset;
 	size_t code_offset;
 
@@ -289,7 +290,12 @@ static int read_apko_payload_program(const void *data, size_t size,
 	*payload_opcode = descriptor[2];
 	*code_words = code_desc[2];
 	memcpy(entry_word, bytes + code_offset, sizeof(*entry_word));
-	if (*entry_word != *payload_opcode)
+	if ((*entry_word & APOLLO_HEXAGON_APKO_CODE_OP_MASK) !=
+	    APOLLO_HEXAGON_APKO_CODE_OP_MODEL_DISPATCH)
+		return -EINVAL;
+	code_entry_kind = *entry_word &
+			  APOLLO_HEXAGON_APKO_CODE_MODEL_MASK;
+	if (code_entry_kind != *payload_opcode)
 		return -EINVAL;
 	return 0;
 }

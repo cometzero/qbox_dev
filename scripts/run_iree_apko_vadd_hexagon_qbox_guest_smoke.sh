@@ -67,7 +67,7 @@ for marker in \
   'command BO bound VADD dispatch' \
   'APOLLO_HEXAGON_DMA: command load payload slot=1 opcode=2' \
   'code_words=1' \
-  'code_entry=2' \
+  'code_entry=65538' \
   'APOLLO_HEXAGON_DMA: command dispatch executable slot=1 kind=2' \
   'APOLLO_HEXAGON_DMA: command dispatch vadd' \
   'APOLLO_HEXAGON_DMA: command queue complete' \

@@ -1051,24 +1051,26 @@ review를 별도로 수행해야 한다.
 2026-05-21 계속 진행:
 
 - APKO byte stream은 이제 `PAYL` descriptor 뒤에 `CODE` descriptor와 최소 code
-  word를 포함한다. UMD는 `PAYL` opcode, `CODE` word count, 첫 code word가 서로
-  일치하는지 검증하고, `LOAD_PAYLOAD` packet의 reserved word에 code word count와
-  entry word를 전달한다.
+  word를 포함한다. UMD는 `PAYL` opcode, `CODE` word count, 첫 code word의
+  `MODEL_DISPATCH` opcode와 model kind field를 검증하고, `LOAD_PAYLOAD` packet의
+  reserved word에 code word count와 encoded entry instruction을 전달한다.
 - Linux driver scanner와 QBox command queue는 `LOAD_PAYLOAD`의 code word count가
-  0이거나 entry word가 payload opcode와 다르면 malformed payload로 처리한다.
-- 이 단계는 아직 instruction stream을 해석하지 않는다. 다만 "opcode descriptor만
-  전달"하던 상태에서 APKO code section 존재와 command packet binding을 검증하는
-  중간 ABI로 전진했다. 남은 단계는 이 code section을 실제 executable BO/code DMA
-  또는 interpreter 입력으로 소비하는 것이다.
+  0이거나 entry instruction이 `MODEL_DISPATCH | payload-kind`로 decode되지 않으면
+  malformed payload로 처리한다.
+- 이 단계는 아직 full APKO instruction stream을 해석하지 않는다. 다만 "opcode
+  descriptor만 전달"하던 상태에서 APKO code section의 첫 instruction을 decode해
+  command packet binding을 검증하는 중간 ABI로 전진했다. 남은 단계는 이 code section을
+  실제 executable BO/code DMA 또는 더 넓은 interpreter 입력으로 소비하는 것이다.
 
 2026-05-21 추가 계속 진행:
 
 - Linux driver의 bound-dispatch scanner는 executable-slot dispatch kind를
-  `LOAD_EXECUTABLE.entry_kind`가 아니라 검증된 APKO `CODE` entry word에서 가져온다.
-- QBox command queue도 `execute_apko_payload_program()`에서 `PAYL` opcode가 아닌
-  `CODE` entry word를 switch 기준으로 사용한다. 현재 entry word는 아직 VADD/CNN/MNIST
-  built-in model-kernel selector지만, 실행 의미가 APKO code section에서 온다는
-  계약을 명시적으로 만든다.
+  `LOAD_EXECUTABLE.entry_kind`가 아니라 검증된 APKO `CODE` entry instruction에서
+  decode한다.
+- QBox command queue도 `execute_apko_payload_program()`에서 `PAYL` opcode를 직접
+  switch하지 않고 `CODE` entry instruction의 opcode/model field를 decode한다. 현재
+  instruction은 아직 VADD/CNN/MNIST built-in model-kernel selector를 호출하지만,
+  실행 의미가 APKO code section에서 온다는 계약을 명시적으로 만든다.
 - guest HAL과 smoke marker는 `code_words`와 함께 `code_entry`를 출력/검증하고,
   QBox component test는 payload opcode와 code entry가 다른 경우를 malformed
   `LOAD_PAYLOAD`로 확인한다.

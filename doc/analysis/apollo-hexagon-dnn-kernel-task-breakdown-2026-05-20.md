@@ -587,17 +587,19 @@ Cross-lane contract gates:
   `APOLLO_HEXAGON_APKO_CODE_VERSION`, `APOLLO_HEXAGON_APKO_CODE_DESCRIPTOR_WORDS`
   상수를 추가했다.
 - VADD, CNN, MNIST staging script는 APKO header 뒤에 `PAYL` descriptor,
-  `CODE` descriptor, 최소 1-word code payload를 붙인다. 현재 code word는 해당
-  payload opcode와 같으며, 실제 instruction stream은 아니다.
+  `CODE` descriptor, 최소 1-word code payload를 붙인다. 현재 code word는
+  `MODEL_DISPATCH | payload-kind` 형태의 transition instruction이며, 실제 Hexagon
+  instruction stream은 아니다.
 - guest HAL은 `PAYL`만 있는 artifact를 malformed로 보고, `CODE` word count와
-  첫 code word가 payload opcode와 일치할 때만 `LOAD_PAYLOAD`를 제출한다.
+  첫 code word의 `MODEL_DISPATCH` opcode 및 payload kind field가 맞을 때만
+  `LOAD_PAYLOAD`를 제출한다.
 - Linux driver와 QBox command queue는 `LOAD_PAYLOAD` packet의 code word count와
-  entry word를 검증한다. QBox component test는 missing code words를 malformed
-  fault로 확인한다.
-- 추가 진행으로 Linux driver와 QBox model은 executable-slot dispatch kind를
-  `LOAD_EXECUTABLE.entry_kind`에서 자동 선택하지 않고, 검증된 `CODE` entry word를
-  실행 선택 기준으로 사용한다. QBox component test는 bad code entry를 별도
+  encoded entry instruction을 검증한다. QBox component test는 missing code words를
   malformed fault로 확인한다.
+- 추가 진행으로 Linux driver와 QBox model은 executable-slot dispatch kind를
+  `LOAD_EXECUTABLE.entry_kind`에서 자동 선택하지 않고, 검증된 `CODE` entry
+  instruction을 decode해 실행 선택 기준으로 사용한다. QBox component test는 bad
+  code entry를 별도 malformed fault로 확인한다.
 
 남은 gap은 그대로 유지한다.
 

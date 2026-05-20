@@ -8,10 +8,12 @@
 자동 생성했지만, 이제 APKO byte stream의 `PAYL` descriptor와 `CODE` descriptor를
 UMD가 읽어 `LOAD_PAYLOAD` packet으로 명시 전달한다. 추가 진행으로
 executable-slot dispatch의 model-kernel 선택은 `LOAD_EXECUTABLE.entry_kind`가 아니라
-검증된 `CODE` entry word를 기준으로 한다.
+검증된 `CODE` entry instruction decode 결과를 기준으로 한다.
 
 이 리포트는 repo-local transition slice의 검증 결과다. full APKO code interpreter,
 true hardware BO mapping, upstream IREE HAL executable packaging 완료 증거는 아니다.
+2026-05-21 추가 진행으로 `CODE` 첫 word는 raw model kind가 아니라
+`MODEL_DISPATCH | model-kind` 형식의 encoded entry instruction으로 갱신했다.
 
 ## 변경 범위
 
@@ -42,10 +44,22 @@ ctest --test-dir sources/qbox/build -R '^apollo-hexagon-dma-tests$' \
   --output-on-failure
 ./scripts/build_apollo_hexagon_guest_tools.sh
 python3 scripts/check_iree_cnn_pipeline_readiness.py --repo . \
-  --json build/verification/iree-readiness-entry-check.json
+  --json build/verification/iree-readiness-code-instr-check.json
 python3 scripts/check_apko_vmfb_verification_lane.py --repo . \
-  --json build/verification/apko-vmfb-entry-check.json
+  --json build/verification/apko-vmfb-code-instr-check.json
 ./scripts/check_buildroot_arm64_lane.sh
+QBOX_IREE_VECTOR_ADD_SKIP_HOST_SMOKE=1 \
+  ./scripts/stage_iree_vector_add_guest_artifacts.sh
+QBOX_IREE_TINY_CNN_SKIP_HOST_SMOKE=1 \
+  ./scripts/stage_iree_tiny_cnn_guest_artifacts.sh
+QBOX_IREE_MNIST_SKIP_HOST_SMOKE=1 \
+  ./scripts/stage_iree_mnist_guest_artifacts.sh
+od -An -t u4 -j 80 -N 4 \
+  build/iree-guest-artifacts/vector-add/vector_add.apko
+od -An -t u4 -j 80 -N 4 \
+  build/iree-guest-artifacts/tiny-cnn/tiny_cnn.apko
+od -An -t u4 -j 80 -N 4 \
+  build/iree-guest-artifacts/mnist/mnist.apko
 git diff --check
 git -C sources/linux diff --check
 git -C sources/qbox diff --check
@@ -62,15 +76,17 @@ git -C sources/qbox diff --check
 - IREE readiness checker: PASS 70
 - APKO VMFB lane checker: PASS 15
 - Buildroot ARM64 lane contract checker: PASS
+- VADD/CNN/MNIST APKO staging: PASS
+- staged APKO code-entry words: VADD `65538`, CNN `65537`, MNIST `65539`
 - diff whitespace checks: PASS
 
 ## 확인된 새 계약
 
 - `LOAD_EXECUTABLE`만으로 executable-slot dispatch를 실행할 수 없다.
 - `LOAD_PAYLOAD`는 `PAYL` magic, version, descriptor word count, payload opcode,
-  `CODE` word count, entry word를 검증한다.
-- Linux driver와 QBox model은 executable-slot dispatch kind를 `CODE` entry word에서
-  가져온다.
+  `CODE` word count, encoded entry instruction을 검증한다.
+- Linux driver와 QBox model은 executable-slot dispatch kind를
+  `CODE` entry instruction의 `MODEL_DISPATCH | model-kind` encoding에서 decode한다.
 - QBox component test가 missing payload와 bad payload opcode를 malformed fault로
   확인한다.
 - QBox component test가 `LOAD_PAYLOAD`의 missing code words를 malformed fault로
@@ -83,7 +99,11 @@ git -C sources/qbox diff --check
   submit path로 fallback한다. descriptor가 존재하지만 내용이 잘못된 경우는 오류로
   처리한다.
 - VADD, CNN, MNIST staging artifact는 APKO header 뒤에 `PAYL` descriptor,
-  `CODE` descriptor, 최소 1-word transition code payload를 포함한다.
+  `CODE` descriptor, 최소 1-word transition code payload를 포함한다. 해당 code word는
+  `MODEL_DISPATCH | model-kind` 형식이다.
+- guest HAL, Linux driver, QBox model은 `APOLLO_HEXAGON_APKO_CODE_OP_MODEL_DISPATCH`
+  opcode와 low 16-bit model kind를 decode한 뒤에만 executable-slot dispatch를
+  허용한다.
 
 ## 남은 작업
 

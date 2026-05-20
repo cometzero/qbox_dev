@@ -499,7 +499,8 @@ static int run_cmd_submit_tests(int fd)
 		packet[4] = APOLLO_HEXAGON_EXEC_KIND_VADD;
 		packet[5] = APOLLO_HEXAGON_APKO_PAYLOAD_DESCRIPTOR_WORDS;
 		packet[6] = 1;
-		packet[7] = APOLLO_HEXAGON_EXEC_KIND_CNN;
+		packet[7] = APOLLO_HEXAGON_APKO_CODE_OP_MODEL_DISPATCH |
+			    APOLLO_HEXAGON_EXEC_KIND_CNN;
 		packet -= APOLLO_HEXAGON_CMDQ_PACKET_WORDS;
 
 		memset(&submit, 0, sizeof(submit));

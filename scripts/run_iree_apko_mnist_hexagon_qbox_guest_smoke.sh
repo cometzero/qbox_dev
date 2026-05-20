@@ -66,7 +66,7 @@ for marker in \
   'max_bindings_per_dispatch=2' \
   'APOLLO_HEXAGON_DMA: command load payload slot=1 opcode=3' \
   'code_words=1' \
-  'code_entry=3' \
+  'code_entry=65539' \
   'APOLLO_HEXAGON_DMA: command dispatch executable slot=1 kind=3' \
   'APOLLO_HEXAGON_DMA: command dispatch mnist' \
   'APOLLO_HEXAGON_DMA: command queue complete' \
