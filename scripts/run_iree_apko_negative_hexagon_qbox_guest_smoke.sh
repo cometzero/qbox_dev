@@ -49,6 +49,7 @@ for marker in \
 	  'PASS: BO bind/unbind ok bind=' \
 	  'PASS: destroyed BO bind handle rejected errno=No such file or directory' \
 	  'PASS: command BO bad LOAD_EXECUTABLE fault ok' \
+	  'PASS: command BO bad LOAD_PAYLOAD fault ok' \
 	  'PASS: command BO invalid IOVA fault ok' \
 	  'PASS: bad WAIT size rejected errno=Invalid argument' \
   'PASS: zero WAIT fence rejected errno=Invalid argument' \

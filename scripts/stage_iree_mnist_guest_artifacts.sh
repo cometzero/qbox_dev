@@ -110,11 +110,12 @@ entry_kind = 3
 input_bytes = 28 * 28 * 4
 output_bytes = 10 * 4
 reserved = [0, 0, 0, 0, 0]
+payload = struct.pack("<4I", 0x5041594C, 0, entry_kind, 4)
 apko = struct.pack(
     "<12I",
     magic, header_bytes, abi_version, executable_format, entry_kind,
     input_bytes, output_bytes, *reserved,
-)
+) + payload
 (stage / "mnist.apko").write_bytes(apko)
 module = (stage / "mnist_aarch64.vmfb").read_bytes()
 footer = struct.pack(

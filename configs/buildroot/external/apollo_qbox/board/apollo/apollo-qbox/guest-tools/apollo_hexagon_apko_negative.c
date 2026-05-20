@@ -483,6 +483,51 @@ static int run_cmd_submit_tests(int fd)
 		}
 
 		memset(packet, 0, bo_create.bo_size);
+		packet[0] = APOLLO_HEXAGON_CMDQ_OPCODE_LOAD_EXECUTABLE;
+		packet[1] = 1;
+		packet[2] = APOLLO_HEXAGON_APKO_MAGIC;
+		packet[3] = APOLLO_HEXAGON_APKO_ABI_VERSION;
+		packet[4] = APOLLO_HEXAGON_EXEC_FORMAT_APKO_V0;
+		packet[5] = APOLLO_HEXAGON_EXEC_KIND_VADD;
+		packet[6] = APOLLO_HEXAGON_VADD_INPUT_WORDS * sizeof(uint32_t);
+		packet[7] = APOLLO_HEXAGON_VADD_OUTPUT_WORDS * sizeof(uint32_t);
+		packet += APOLLO_HEXAGON_CMDQ_PACKET_WORDS;
+		packet[0] = APOLLO_HEXAGON_CMDQ_OPCODE_LOAD_PAYLOAD;
+		packet[1] = 1;
+		packet[2] = APOLLO_HEXAGON_APKO_PAYLOAD_MAGIC;
+		packet[3] = APOLLO_HEXAGON_APKO_PAYLOAD_VERSION;
+		packet[4] = APOLLO_HEXAGON_EXEC_KIND_CNN;
+		packet[5] = APOLLO_HEXAGON_APKO_PAYLOAD_DESCRIPTOR_WORDS;
+		packet -= APOLLO_HEXAGON_CMDQ_PACKET_WORDS;
+
+		memset(&submit, 0, sizeof(submit));
+		submit.size = sizeof(submit);
+		submit.context_handle = context_create.handle;
+		submit.command_bo_handle = bo_create.handle;
+		submit.command_size = 2 * APOLLO_HEXAGON_CMDQ_PACKET_BYTES;
+		submit.queue_id = 1;
+		if (ioctl(fd, DRM_IOCTL_APOLLO_HEXAGON_CMD_SUBMIT, &submit) == 0) {
+			fprintf(stderr,
+				"FAIL: command BO bad LOAD_PAYLOAD unexpectedly succeeded\n");
+			failed = 1;
+		} else if (errno != EIO) {
+			fprintf(stderr,
+				"FAIL: command BO bad LOAD_PAYLOAD returned errno=%d (%s), expected errno=%d (%s)\n",
+				errno, strerror(errno), EIO, strerror(EIO));
+			failed = 1;
+		} else if (submit.status != APOLLO_HEXAGON_CMDQ_STATUS_ERROR ||
+			   submit.result != APOLLO_HEXAGON_CMDQ_FAULT_MALFORMED_PACKET ||
+			   !submit.fence_seq) {
+			fprintf(stderr,
+				"FAIL: command BO bad LOAD_PAYLOAD returned bad fault status=0x%x result=0x%x fence=%u\n",
+				submit.status, submit.result, submit.fence_seq);
+			failed = 1;
+		} else {
+			printf("PASS: command BO bad LOAD_PAYLOAD fault ok fence=%u status=0x%x result=0x%x\n",
+			       submit.fence_seq, submit.status, submit.result);
+		}
+
+		memset(packet, 0, bo_create.bo_size);
 		packet[0] = APOLLO_HEXAGON_CMDQ_OPCODE_COPY;
 		packet[2] = 0x20000000u;
 		packet[4] = 0x10000000u;

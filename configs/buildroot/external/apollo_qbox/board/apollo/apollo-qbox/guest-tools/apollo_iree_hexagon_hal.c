@@ -240,6 +240,37 @@ static int read_whole_file(const char *path, void **out_data,
 	return 0;
 }
 
+static int read_apko_payload_opcode(const void *data, size_t size,
+				    uint32_t entry_kind,
+				    uint32_t *payload_opcode)
+{
+	struct drm_apollo_hexagon_apko_header header;
+	uint32_t descriptor[APOLLO_HEXAGON_APKO_PAYLOAD_DESCRIPTOR_WORDS];
+	const unsigned char *bytes = data;
+
+	if (!data || size < sizeof(header))
+		return -EINVAL;
+
+	memcpy(&header, bytes, sizeof(header));
+	if (header.header_bytes < sizeof(header) ||
+	    header.header_bytes > size ||
+	    header.header_bytes % sizeof(uint32_t))
+		return -EINVAL;
+	if (size - header.header_bytes < sizeof(descriptor))
+		return -ENODATA;
+
+	memcpy(descriptor, bytes + header.header_bytes, sizeof(descriptor));
+	if (descriptor[0] != APOLLO_HEXAGON_APKO_PAYLOAD_MAGIC ||
+	    descriptor[1] != APOLLO_HEXAGON_APKO_PAYLOAD_VERSION ||
+	    descriptor[3] != APOLLO_HEXAGON_APKO_PAYLOAD_DESCRIPTOR_WORDS)
+		return -EINVAL;
+	if (descriptor[2] != entry_kind)
+		return -EINVAL;
+
+	*payload_opcode = descriptor[2];
+	return 0;
+}
+
 static int load_embedded_apko_from_module(
 	const char *module_path, struct apollo_hexagon_executable *exe,
 	char *error, size_t error_len)
@@ -516,9 +547,9 @@ static int unbind_bo(int fd, uint32_t context_handle,
 
 static int apollo_hexagon_queue_submit_apko_cmdq(
 	struct apollo_hexagon_queue *queue, uint32_t executable_handle,
-	uint32_t entry_kind, const void *input, size_t input_bytes, void *output,
-	size_t output_bytes, struct apollo_hexagon_fence *fence, char *error,
-	size_t error_len)
+	uint32_t entry_kind, uint32_t payload_opcode, const void *input,
+	size_t input_bytes, void *output, size_t output_bytes,
+	struct apollo_hexagon_fence *fence, char *error, size_t error_len)
 {
 	struct drm_apollo_hexagon_context_create context;
 	struct drm_apollo_hexagon_context_destroy destroy_context;
@@ -592,6 +623,15 @@ static int apollo_hexagon_queue_submit_apko_cmdq(
 	packet[6] = (uint32_t)input_bytes;
 	packet[7] = (uint32_t)output_bytes;
 	packet += APOLLO_HEXAGON_CMDQ_PACKET_WORDS;
+	packet[0] = APOLLO_HEXAGON_CMDQ_OPCODE_LOAD_PAYLOAD;
+	packet[1] = exec_slot;
+	packet[2] = APOLLO_HEXAGON_APKO_PAYLOAD_MAGIC;
+	packet[3] = APOLLO_HEXAGON_APKO_PAYLOAD_VERSION;
+	packet[4] = payload_opcode;
+	packet[5] = APOLLO_HEXAGON_APKO_PAYLOAD_DESCRIPTOR_WORDS;
+	packet[6] = 0;
+	packet[7] = 0;
+	packet += APOLLO_HEXAGON_CMDQ_PACKET_WORDS;
 	packet[0] = APOLLO_HEXAGON_CMDQ_OPCODE_DISPATCH;
 	packet[1] = APOLLO_HEXAGON_CMDQ_DISPATCH_EXEC_SLOT_FLAG | exec_slot;
 	packet[2] = (uint32_t)input_bind.iova;
@@ -624,9 +664,9 @@ static int apollo_hexagon_queue_submit_apko_cmdq(
 	fence->signaled = 1;
 	fence->queue_id = submit.queue_id;
 	fence->fence_seq = submit.fence_seq;
-	printf("IREE Apollo Hexagon HAL: APKO CMD_SUBMIT %s ok executable=%u exec_slot=%u ctx=%u cmd_bo=%u input_bind=%u output_bind=%u queue=%u fence=%u status=0x%08x result=0x%08x\n",
+	printf("IREE Apollo Hexagon HAL: APKO CMD_SUBMIT %s ok executable=%u exec_slot=%u payload_opcode=%u ctx=%u cmd_bo=%u input_bind=%u output_bind=%u queue=%u fence=%u status=0x%08x result=0x%08x\n",
 	       apollo_hexagon_exec_kind_name(entry_kind), executable_handle,
-	       exec_slot, context_handle, command_bo.handle,
+	       exec_slot, payload_opcode, context_handle, command_bo.handle,
 	       input_bind.handle, output_bind.handle,
 	       submit.queue_id, submit.fence_seq, submit.status, submit.result);
 	ret = 0;
@@ -1055,6 +1095,7 @@ int apollo_hexagon_queue_submit_apko(
 	void *apko_data = NULL;
 	const void *create_data;
 	size_t apko_size = 0;
+	uint32_t payload_opcode = 0;
 	int ret;
 
 	if ((!exe->apko_path[0] && !exe->apko_data) ||
@@ -1105,11 +1146,23 @@ int apollo_hexagon_queue_submit_apko(
 	     create.entry_kind == APOLLO_HEXAGON_EXEC_KIND_MNIST) &&
 	    queue->max_command_bytes >= APOLLO_HEXAGON_CMDQ_SUBMIT_MAX_BYTES &&
 	    queue->max_bindings_per_dispatch >= 2) {
-		ret = apollo_hexagon_queue_submit_apko_cmdq(
-			queue, create.handle, create.entry_kind, input,
-			input_bytes, output, output_bytes, fence, error,
-			error_len);
-		goto out_destroy;
+		ret = read_apko_payload_opcode(create_data, apko_size,
+					       create.entry_kind,
+					       &payload_opcode);
+		if (ret) {
+			if (ret != -ENODATA) {
+				set_error(error, error_len,
+					  "APKO payload descriptor is invalid",
+					  NULL);
+				goto out_destroy;
+			}
+		} else {
+			ret = apollo_hexagon_queue_submit_apko_cmdq(
+				queue, create.handle, create.entry_kind,
+				payload_opcode, input, input_bytes, output,
+				output_bytes, fence, error, error_len);
+			goto out_destroy;
+		}
 	}
 
 	memset(&submit, 0, sizeof(submit));

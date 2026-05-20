@@ -162,11 +162,12 @@ entry_kind = 1
 input_bytes = 64
 output_bytes = 16
 reserved = [0, 0, 0, 0, 0]
+payload = struct.pack("<4I", 0x5041594C, 0, entry_kind, 4)
 apko = struct.pack(
     "<12I",
     magic, header_bytes, abi_version, executable_format, entry_kind,
     input_bytes, output_bytes, *reserved,
-)
+) + payload
 path.write_bytes(apko)
 
 module = (stage / "tiny_cnn_aarch64.vmfb").read_bytes()

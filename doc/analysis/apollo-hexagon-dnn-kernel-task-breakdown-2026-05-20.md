@@ -518,6 +518,12 @@ Cross-lane contract gates:
   fence/status/fault code layout, and `max_command_bytes` 값을 동시에 변경하지 않는다.
   ABI 변경이 필요하면 worker-3이 guest-tools/stage script 계약을 갱신하고,
   worker-2가 negative smoke를 추가한다.
+- 2026-05-21 리뷰 반영 후 command ABI는
+  `LOAD_EXECUTABLE -> LOAD_PAYLOAD -> DISPATCH(exec-slot)` 3-packet 계약이다.
+  `LOAD_EXECUTABLE`은 executable slot과 tensor geometry만 로드하고,
+  APKO payload opcode는 APKO 파일의 `PAYL` descriptor를 UMD가 읽어
+  `LOAD_PAYLOAD` packet으로 명시적으로 전달한다. QBox는 `LOAD_PAYLOAD`가 없는
+  executable-slot dispatch를 malformed packet으로 처리해야 한다.
 - worker-2는 fixed compatibility path와 generic v2 path를 반드시 별도 PASS/FAIL로
   기록한다. `SUBMIT_CNN`/`SUBMIT_VADD` marker가 generic smoke 성공 근거로 섞이면
   regression으로 본다.
@@ -548,3 +554,33 @@ Cross-lane contract gates:
   명시적으로 축소된다.
 - 정적 검사, Linux build, Buildroot/rootfs staging, QBox guest smoke, readiness
   report, SMMUv3 compliance check가 최신 로그로 남아 있다.
+
+## 2026-05-21 리뷰 반영 결과
+
+이번 반영은 full APKO interpreter나 upstream IREE HAL executable packaging 완료가
+아니라, 기존 entry-kind 기반 자동 payload 선택을 제거하는 중간 단계다.
+
+- Linux/guest UAPI의 `APOLLO_HEXAGON_CMDQ_SUBMIT_MAX_PACKETS`를 3으로 늘리고
+  `APOLLO_HEXAGON_CMDQ_OPCODE_LOAD_PAYLOAD` 및 APKO `PAYL` descriptor 상수를
+  추가했다.
+- Linux driver `CMD_SUBMIT` scanner는 valid `LOAD_PAYLOAD`를 본 경우에만
+  executable-slot dispatch를 BO binding copy shim 대상으로 인정한다.
+- QBox `apollo_hexagon_dma`는 `LOAD_EXECUTABLE`에서 payload opcode를 더 이상
+  자동 생성하지 않는다. `LOAD_PAYLOAD`가 없거나 executable kind와 payload opcode가
+  맞지 않으면 malformed fault를 낸다.
+- guest HAL은 staged APKO/VMFB-embedded APKO에서 `PAYL` descriptor를 읽고,
+  `LOAD_EXECUTABLE -> LOAD_PAYLOAD -> DISPATCH(exec-slot)` command BO를 제출한다.
+  descriptor가 없는 기존 APKO v0 artifact는 ABI 호환을 위해 legacy submit path로
+  fallback하고, descriptor가 존재하지만 malformed이면 오류로 처리한다.
+- VADD, CNN, MNIST staging script는 48-byte APKO header 뒤에 16-byte `PAYL`
+  descriptor를 붙인다.
+- negative coverage는 bad `LOAD_PAYLOAD` fault와 executable-slot-without-payload
+  component test를 추가했다.
+
+남은 gap은 그대로 유지한다.
+
+- APKO payload는 아직 실제 Hexagon code blob/interpreter가 아니라 opcode descriptor다.
+- command BO input/output은 여전히 Linux driver의 QBox shared-window copy shim을
+  거친다. true hardware BO/SMMU/TBU page mapping은 별도 작업이다.
+- VMFB trailer는 repo-local transition ABI다. upstream IREE HAL executable section
+  packaging 완료로 주장하지 않는다.

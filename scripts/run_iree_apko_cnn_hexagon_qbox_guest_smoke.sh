@@ -40,6 +40,7 @@ for marker in \
   'IREE Apollo Hexagon HAL: executable_format=apollo-hexagon-apko-v0' \
   'IREE Apollo Hexagon HAL: queues=2 command-buffer=generic-submit' \
   'IREE Apollo Hexagon HAL: generic_abi_version=1 executable_formats=0x00000002' \
+  'APOLLO_HEXAGON_DMA: command load payload slot=1 opcode=1' \
   'APOLLO_HEXAGON_DMA: command dispatch executable slot=1 kind=1' \
   'APOLLO_HEXAGON_DMA: command dispatch cnn' \
   'IREE Apollo Hexagon HAL: APKO CMD_SUBMIT CNN ok' \
@@ -58,6 +59,14 @@ if ! grep -F 'LOAD_EXECUTABLE slot=1 kind=1' "${log_path}" >/dev/null && \
    ! grep -F 'APOLLO_HEXAGON_DMA: command load executable slot=1 kind=1' \
       "${log_path}" >/dev/null; then
   echo "missing APKO CNN marker: LOAD_EXECUTABLE slot=1 kind=1" >&2
+  echo "log: ${log_path}" >&2
+  exit 1
+fi
+
+if ! grep -F 'LOAD_PAYLOAD slot=1 opcode=1' "${log_path}" >/dev/null && \
+   ! grep -F 'APOLLO_HEXAGON_DMA: command load payload slot=1 opcode=1' \
+      "${log_path}" >/dev/null; then
+  echo "missing APKO CNN marker: LOAD_PAYLOAD slot=1 opcode=1" >&2
   echo "log: ${log_path}" >&2
   exit 1
 fi

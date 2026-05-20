@@ -133,6 +133,7 @@ def repo_checks(repo: Path) -> list[Check]:
             (
                 "command-buffer=generic-submit",
                 "command load executable slot=1 kind=2",
+                "command load payload slot=1 opcode=2",
                 "command BO bound VADD dispatch",
                 "command BO bound VADD output copied",
                 "APKO CMD_SUBMIT VADD ok",
@@ -149,6 +150,7 @@ def repo_checks(repo: Path) -> list[Check]:
             (
                 "command-buffer=generic-submit",
                 "generic_abi_version=1",
+                "command load payload slot=1 opcode=1",
                 "command dispatch executable slot=1 kind=1",
                 "command dispatch cnn",
                 "APKO CMD_SUBMIT CNN ok",
@@ -165,6 +167,7 @@ def repo_checks(repo: Path) -> list[Check]:
             (
                 "command-buffer=generic-submit",
                 "generic_abi_version=1",
+                "command load payload slot=1 opcode=3",
                 "command dispatch executable slot=1 kind=3",
                 "command dispatch mnist",
                 "APKO CMD_SUBMIT MNIST ok",
@@ -182,6 +185,7 @@ def repo_checks(repo: Path) -> list[Check]:
                 "bad context ABI version",
                 "bad BO bind size",
                 "command BO bad LOAD_EXECUTABLE fault ok",
+                "command BO bad LOAD_PAYLOAD fault ok",
                 "command BO invalid IOVA fault ok",
                 "bad WAIT size",
                 "future WAIT fence",

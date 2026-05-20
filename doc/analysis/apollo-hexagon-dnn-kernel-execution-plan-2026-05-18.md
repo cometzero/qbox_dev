@@ -1030,6 +1030,24 @@ review를 별도로 수행해야 한다.
   Flatten+Gemm output을 내는지 확인한다. trained MNIST accuracy나 full APKO code
   execution 완료로 해석하지 않는다.
 
+2026-05-21 리뷰 추가 반영:
+
+- command queue APKO 실행 계약을
+  `LOAD_EXECUTABLE -> LOAD_PAYLOAD -> DISPATCH(exec-slot)`으로 갱신했다.
+  `LOAD_EXECUTABLE`은 slot, executable format, tensor geometry만 담고,
+  payload opcode는 APKO byte stream의 `PAYL` descriptor를 UMD가 읽어
+  `LOAD_PAYLOAD` packet으로 별도 전달한다.
+- QBox model은 더 이상 `entry_kind`에서 payload opcode를 자동 파생하지 않는다.
+  payload packet이 없거나 executable kind와 payload opcode가 다르면 malformed fault를
+  발생시킨다.
+- Linux driver scanner도 `LOAD_PAYLOAD`를 본 slot만 bound dispatch copy shim 대상으로
+  인정한다. 따라서 command BO의 payload load 순서가 driver, UMD, QBox 모두에서
+  명시적으로 검증된다.
+- 이 변경은 “실제 APKO code blob 실행”이 아니라 “metadata-derived built-in stub
+  dispatch 제거” 단계다. 다음 단계는 payload descriptor 뒤에 실제 code/data section을
+  싣고, QBox/driver가 executable BO 또는 instruction stream으로 이를 소비하도록
+  확장하는 것이다.
+
 이 구조가 요청한 `iree compile -> VMFB -> IREE runtime -> Apollo Hexagon UMD
 -> Apollo Hexagon driver -> Apollo Hexagon hardware` 경로와 가장 잘 맞는다.
 driver는 graph runtime이 아니라 accelerator resource manager가 되고, DNN
