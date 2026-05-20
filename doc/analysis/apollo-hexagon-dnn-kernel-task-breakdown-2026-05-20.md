@@ -16,11 +16,11 @@ iree compile -> VMFB -> IREE runtime -> Apollo Hexagon UMD
 
 현재 구현은 APKO v0 sidecar/VMFB trailer, executable handle, generic submit,
 `GET_FAULT`, `QUERY_CAPS`, generic context, GEM SHMEM BO lifecycle, BO binding
-metadata foundation, 64-byte command BO `CMD_SUBMIT`, 그리고 VADD/CNN
-`LOAD_EXECUTABLE -> DISPATCH(exec-slot)` smoke까지 진행된 상태다. 그러나 아직
+metadata foundation, 64-byte command BO `CMD_SUBMIT`, 그리고 VADD/CNN/MNIST-like
+`LOAD_EXECUTABLE -> DISPATCH(exec-slot)` smoke 준비까지 진행된 상태다. 그러나 아직
 DNN kernel 실행 구조의 최종 상태는 아니다. 남은 핵심은 BO binding을 실제
-hardware/SMMU mapping에 연결하고, full APKO code/payload 실행과 MNIST
-Linux/UMD CMDQ binding, upstream IREE VMFB HAL executable packaging을 완성하는
+hardware/SMMU mapping에 연결하고, full APKO code/payload 실행과 true MNIST ONNX
+compile/runtime semantics, upstream IREE VMFB HAL executable packaging을 완성하는
 것이다.
 
 ## 계획 리뷰 반영 요약
@@ -31,8 +31,10 @@ Linux/UMD CMDQ binding, upstream IREE VMFB HAL executable packaging을 완성하
 
 - 현재 상태와 목표 상태를 분리한다. `CMD_SUBMIT`, `BO_BIND`, `WAIT`,
   `GET_FAULT`는 foundation으로 완료됐고 VADD/CNN은 binding table과 VMFB 내부
-  APKO trailer를 통해 CMDQ dispatch로 검증됐다. MNIST Linux/UMD binding,
-  true hardware BO mapping, full APKO payload execution은 아직 완료가 아니다.
+  APKO trailer를 통해 CMDQ dispatch로 검증됐다. 2026-05-21 추가 리뷰 반영으로
+  MNIST-like APKO kind도 Linux/UMD `CMD_SUBMIT` 경계에 연결했다. true hardware BO
+  mapping, full APKO payload execution, true MNIST ONNX 모델 실행은 아직 완료가
+  아니다.
 - fixed CNN/VADD ioctl은 계속 compatibility shim으로만 취급한다. 새 driver
   core의 중심 경로는 context, BO, executable, command BO submit, wait/fence,
   fault record, SMMU-visible binding이다.
@@ -71,6 +73,8 @@ Linux/UMD CMDQ binding, upstream IREE VMFB HAL executable packaging을 완성하
   mapping 완료를 뜻하지 않는다.
 - APKO VADD/CNN sidecar guest smoke, VADD/CNN VMFB-embedded APKO guest smoke,
   APKO negative ioctl smoke는 통과한다.
+- MNIST-like APKO sidecar guest smoke는 staging/smoke/checker 계약이 추가됐고,
+  정적 검사와 smoke 실행은 전체 수정 정리 이후 수행한다.
 - BO negative smoke는 zero-size reject, BO create/destroy, stale BO handle
   reject를 검증한다.
 - BO bind negative smoke는 bad bind size, invalid context, invalid BO handle,
@@ -98,13 +102,15 @@ Linux/UMD CMDQ binding, upstream IREE VMFB HAL executable packaging을 완성하
    hardware mapping과 per-context address-space ownership으로 확장하는 것이다.
 3. 완료: QBox Apollo Hexagon DMA/firmware path를 byte-count fixed dispatcher에서 command
    packet parser로 전환한다.
-4. 부분 완료: APKO v0 metadata와 binding table을 VADD/CNN command packet으로 실행한다.
-   남은 작업은 true APKO code/payload execution과 MNIST Linux/UMD binding이다.
+4. 부분 완료: APKO v0 metadata와 binding table을 VADD/CNN/MNIST-like command
+   packet으로 실행한다. 남은 작업은 true APKO code/payload execution과 true MNIST
+   ONNX 모델 실행이다.
 5. 부분 완료: Apollo IREE HAL UMD가 staged VMFB 안의 repo-local APKO trailer를
    읽어 driver v2로 submit할 수 있다. 남은 작업은 upstream IREE HAL executable
    section으로 APKO를 packaging하는 것이다.
-6. 완료/부분: Buildroot rootfs staging과 smoke는 VMFB-driven APKO VADD/CNN까지
-   전환했다. MNIST VMFB-driven APKO smoke는 후속 작업이다.
+6. 완료/부분: Buildroot rootfs staging과 smoke는 VMFB-driven APKO VADD/CNN과
+   MNIST-like APKO sidecar/VMFB-trailer 계약까지 전환했다. true MNIST VMFB-driven
+   compile artifact는 후속 작업이다.
 7. 완료: invalid IOVA fault-producing `GET_FAULT` positive path를
    negative/diagnostic coverage에 추가했다. unsupported ONNX op coverage는 남아
    있다.
@@ -256,9 +262,9 @@ git diff --check && git -C sources/linux diff --check
   `COPY` packet을 command BO로 제출하고, `CMDQ_FAULT_DMA_ERROR`를
   `GET_FAULT` clear retrieval로 회수한다.
 - 추가 진행으로 `LOAD_EXECUTABLE`은 APKO v0 metadata를 QBox executable slot에
-  적재하고, executable-slot `DISPATCH/VADD`와 `DISPATCH/CNN`이 그 metadata를
-  참조한다. 아직 true APKO code/payload loading과 MNIST Linux/UMD CMDQ binding은
-  다음 slice로 남아 있다.
+  적재하고, executable-slot `DISPATCH/VADD`, `DISPATCH/CNN`, `DISPATCH/MNIST`가
+  그 metadata를 참조한다. 아직 true APKO code/payload loading과 true MNIST ONNX
+  compile/runtime semantics는 다음 slice로 남아 있다.
 - VMFB-embedded APKO transition slice 리뷰 반영으로 embedded APKO footer/header
   ABI 검증과 UMD-side executable unload path를 추가했다. 이 작업은 staged VMFB
   trailer를 안전하게 소비하는 중간 단계이며, upstream IREE VMFB HAL executable
@@ -270,19 +276,31 @@ git diff --check && git -C sources/linux diff --check
   executable-slot dispatch를 인식한다. input/output BO binding을 shared SRAM window로
   patch한 뒤 QBox CMDQ doorbell을 울리고, completion 후 output BO로 결과를 복사한다.
 - QBox DMA 모델의 executable-slot CNN dispatch는 tiny-CNN canonical output
-  `1x1x2x2xf32=[[[54 63][90 99]]]`을 반환한다. MNIST-like direct dispatch stub은
-  남겨 두되 Linux/UMD binding은 아직 연결하지 않았다.
+  `1x1x2x2xf32=[[[54 63][90 99]]]`을 반환한다. 이 당시에는 MNIST-like direct
+  dispatch stub만 있었고 Linux/UMD binding은 아직 연결하지 않았다.
 - sidecar APKO CNN smoke와 VMFB-embedded APKO CNN smoke가 모두 fixed `SUBMIT_CNN`
   compatibility path가 아니라 `APKO CMD_SUBMIT CNN ok` marker로 통과했다.
+
+2026-05-21 추가 리뷰 반영 상태:
+
+- kernel/guest UAPI에 `APOLLO_HEXAGON_EXEC_KIND_MNIST`와 MNIST-like 16-word input,
+  4-word output geometry를 추가했다.
+- Linux driver `CMD_SUBMIT` scanner와 APKO header validator가 MNIST-like entry kind를
+  인식하고, UMD가 `mnist_graph` metadata를 `EXEC_CREATE -> CMD_SUBMIT ->
+  EXEC_DESTROY`로 실행한다.
+- `stage_iree_mnist_guest_artifacts.sh`와
+  `run_iree_apko_mnist_hexagon_qbox_guest_smoke.sh`는 deterministic byte-invert
+  MNIST-like kernel stub을 검증한다. 이는 true MNIST ONNX compile 결과가 아니라
+  DNN kernel ABI 연결을 증명하는 transition artifact다.
 
 세부 태스크:
 
 | ID | 태스크 | 선행 조건 | 완료 기준 |
 | --- | --- | --- | --- |
 | L2-1 | 완료: `LOAD_EXECUTABLE` packet ABI 정의 | APKO v0 header/payload 결정 | QBox component test가 valid/invalid executable load를 구분한다. |
-| L2-2 | 완료/부분: executable slot을 `DISPATCH`와 연결 | L2-1 | VADD/CNN `DISPATCH` packet이 fixed kind만 보지 않고 loaded executable metadata를 참조한다. MNIST Linux/UMD binding은 남아 있다. |
+| L2-2 | 완료/부분: executable slot을 `DISPATCH`와 연결 | L2-1 | VADD/CNN/MNIST-like `DISPATCH` packet이 fixed kind만 보지 않고 loaded executable metadata를 참조한다. |
 | L2-3 | tensor binding 기반 DMA fetch/store | L1-2 | QBox DMA가 staged shared SRAM 상수 주소가 아니라 binding-derived IOVA를 사용한다. |
-| L2-4 | 부분 완료: CNN/MNIST 최소 op subset command dispatch | L2-2, L2-3 | APKO CNN smoke가 fixed byte-count dispatcher 없이 CMDQ path로 통과한다. MNIST smoke는 후속 작업이다. |
+| L2-4 | 부분 완료: CNN/MNIST 최소 op subset command dispatch | L2-2, L2-3 | APKO CNN과 MNIST-like smoke가 fixed byte-count dispatcher 없이 CMDQ path로 통과하도록 계약화됐다. true MNIST ONNX 모델 실행은 후속 작업이다. |
 
 검증:
 
@@ -392,9 +410,16 @@ QBOX_IREE_VECTOR_ADD_SKIP_HOST_SMOKE=1 \
 - 기존 `run_iree_apko_cnn_hexagon_qbox_guest_smoke.sh`도 `APKO CMD_SUBMIT CNN ok`,
   `command dispatch executable slot=1 kind=1`, `command dispatch cnn` marker를
   요구하도록 갱신했다.
-- readiness checker는 host venv 기준 PASS 67로 갱신됐고, 남은 blocker는 true
+- readiness checker는 host venv 기준 PASS 67로 갱신됐고, 당시 남은 blocker는 true
   hardware BO mapping, full APKO code execution, MNIST Linux/UMD CMDQ binding,
   upstream VMFB HAL executable backend packaging으로 좁혔다.
+
+2026-05-21 추가 리뷰 반영:
+
+- readiness/check_buildroot/APKO-VMFB checker가 MNIST-like APKO staging과 smoke
+  계약을 추적한다.
+- 남은 blocker 표현은 MNIST Linux/UMD binding이 아니라 true MNIST ONNX compile 및
+  runtime semantics로 좁힌다.
 
 완료 기준:
 

@@ -103,3 +103,21 @@ Run:
   /opt/qbox/iree/vector-add/run_vector_add_hexagon_guest.sh
 MARKER
 fi
+
+iree_mnist_guest_artifacts_dir=${QBOX_IREE_MNIST_GUEST_ARTIFACTS_DIR:-}
+if [[ -n "${iree_mnist_guest_artifacts_dir}" ]]; then
+  if [[ ! -d "${iree_mnist_guest_artifacts_dir}" ]]; then
+    echo "QBOX_IREE_MNIST_GUEST_ARTIFACTS_DIR is not a directory: ${iree_mnist_guest_artifacts_dir}" >&2
+    exit 1
+  fi
+
+  install -d "${target_dir}/opt/qbox/iree/mnist"
+  cp -a "${iree_mnist_guest_artifacts_dir}/." "${target_dir}/opt/qbox/iree/mnist/"
+  cat > "${target_dir}/opt/qbox/iree/mnist/README" <<'MARKER'
+This image contains optional Apollo QBox IREE MNIST-like guest artifacts.
+
+Run:
+
+  /opt/qbox/iree/mnist/run_mnist_apko_hexagon_guest.sh
+MARKER
+fi

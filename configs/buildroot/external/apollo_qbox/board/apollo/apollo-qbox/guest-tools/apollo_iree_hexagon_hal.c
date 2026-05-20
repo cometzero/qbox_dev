@@ -93,6 +93,9 @@ static uint32_t entry_kind_from_name(const char *name)
 	if (strcmp(name, "vector_add_graph") == 0 ||
 	    strcmp(name, "vadd") == 0)
 		return APOLLO_HEXAGON_EXEC_KIND_VADD;
+	if (strcmp(name, "mnist_graph") == 0 ||
+	    strcmp(name, "mnist") == 0)
+		return APOLLO_HEXAGON_EXEC_KIND_MNIST;
 	return 0;
 }
 
@@ -134,6 +137,23 @@ static int set_entry_defaults(struct apollo_hexagon_executable *exe,
 				APOLLO_HEXAGON_VADD_OUTPUT_WORDS *
 				sizeof(uint32_t);
 		return 0;
+	case APOLLO_HEXAGON_EXEC_KIND_MNIST:
+		if (copy_string(exe->entry_point, sizeof(exe->entry_point),
+				"mnist_graph") ||
+		    copy_string(exe->expected_output,
+				sizeof(exe->expected_output),
+				"4xi32=0xfffffffe 0xfffffffd 0xfffffffc 0xfffffffb"))
+			return -ENAMETOOLONG;
+		exe->entry_kind = entry_kind;
+		if (!exe->input_bytes)
+			exe->input_bytes =
+				APOLLO_HEXAGON_MNIST_INPUT_WORDS *
+				sizeof(uint32_t);
+		if (!exe->output_bytes)
+			exe->output_bytes =
+				APOLLO_HEXAGON_MNIST_OUTPUT_WORDS *
+				sizeof(uint32_t);
+		return 0;
 	default:
 		return -EINVAL;
 	}
@@ -150,6 +170,8 @@ static int infer_entry_defaults_from_module(
 	name = name ? name + 1 : module_path;
 	if (strstr(name, "vector_add"))
 		return set_entry_defaults(exe, APOLLO_HEXAGON_EXEC_KIND_VADD);
+	if (strstr(name, "mnist"))
+		return set_entry_defaults(exe, APOLLO_HEXAGON_EXEC_KIND_MNIST);
 	if (strstr(name, "tiny_cnn") || strstr(name, "cnn"))
 		return set_entry_defaults(exe, APOLLO_HEXAGON_EXEC_KIND_CNN);
 	return 0;
@@ -369,6 +391,8 @@ static const char *apollo_hexagon_exec_kind_name(uint32_t entry_kind)
 		return "CNN";
 	case APOLLO_HEXAGON_EXEC_KIND_VADD:
 		return "VADD";
+	case APOLLO_HEXAGON_EXEC_KIND_MNIST:
+		return "MNIST";
 	default:
 		return "unknown";
 	}
@@ -591,9 +615,12 @@ static int apollo_hexagon_queue_submit_apko_cmdq(
 	}
 
 	memcpy(output, output_bo.map, output_bytes);
-	fence->status = entry_kind == APOLLO_HEXAGON_EXEC_KIND_VADD ?
-		APOLLO_HEXAGON_HAL_STATUS_VADD_OK :
-		APOLLO_HEXAGON_HAL_STATUS_OK;
+	if (entry_kind == APOLLO_HEXAGON_EXEC_KIND_VADD)
+		fence->status = APOLLO_HEXAGON_HAL_STATUS_VADD_OK;
+	else if (entry_kind == APOLLO_HEXAGON_EXEC_KIND_MNIST)
+		fence->status = APOLLO_HEXAGON_HAL_STATUS_MNIST_OK;
+	else
+		fence->status = APOLLO_HEXAGON_HAL_STATUS_OK;
 	fence->signaled = 1;
 	fence->queue_id = submit.queue_id;
 	fence->fence_seq = submit.fence_seq;
@@ -797,6 +824,11 @@ int apollo_hexagon_load_executable(const char *metadata_path,
 		    exe->entry_kind == APOLLO_HEXAGON_EXEC_KIND_VADD)
 			exe->input_bytes =
 				APOLLO_HEXAGON_VADD_INPUT_WORDS * sizeof(uint32_t);
+		if (!exe->input_bytes &&
+		    exe->entry_kind == APOLLO_HEXAGON_EXEC_KIND_MNIST)
+			exe->input_bytes =
+				APOLLO_HEXAGON_MNIST_INPUT_WORDS *
+				sizeof(uint32_t);
 		if (!exe->output_bytes &&
 		    exe->entry_kind == APOLLO_HEXAGON_EXEC_KIND_CNN)
 			exe->output_bytes =
@@ -805,6 +837,11 @@ int apollo_hexagon_load_executable(const char *metadata_path,
 		    exe->entry_kind == APOLLO_HEXAGON_EXEC_KIND_VADD)
 			exe->output_bytes =
 				APOLLO_HEXAGON_VADD_OUTPUT_WORDS *
+				sizeof(uint32_t);
+		if (!exe->output_bytes &&
+		    exe->entry_kind == APOLLO_HEXAGON_EXEC_KIND_MNIST)
+			exe->output_bytes =
+				APOLLO_HEXAGON_MNIST_OUTPUT_WORDS *
 				sizeof(uint32_t);
 	}
 
@@ -1064,7 +1101,8 @@ int apollo_hexagon_queue_submit_apko(
 	}
 
 	if ((create.entry_kind == APOLLO_HEXAGON_EXEC_KIND_CNN ||
-	     create.entry_kind == APOLLO_HEXAGON_EXEC_KIND_VADD) &&
+	     create.entry_kind == APOLLO_HEXAGON_EXEC_KIND_VADD ||
+	     create.entry_kind == APOLLO_HEXAGON_EXEC_KIND_MNIST) &&
 	    queue->max_command_bytes >= APOLLO_HEXAGON_CMDQ_SUBMIT_MAX_BYTES &&
 	    queue->max_bindings_per_dispatch >= 2) {
 		ret = apollo_hexagon_queue_submit_apko_cmdq(

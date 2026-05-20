@@ -336,6 +336,48 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
+	if (strcmp(exe.entry_point, "mnist_graph") == 0) {
+		uint32_t input[APOLLO_HEXAGON_MNIST_INPUT_WORDS];
+		uint32_t output[APOLLO_HEXAGON_MNIST_OUTPUT_WORDS] = { 0 };
+
+		for (i = 0; i < APOLLO_HEXAGON_MNIST_INPUT_WORDS; i++)
+			input[i] = (uint32_t)i + 1;
+
+		memset(&fence, 0, sizeof(fence));
+		binding.ops->queue_select(&queue, 1);
+		if (exe.executable_format != APOLLO_HEXAGON_EXEC_FORMAT_APKO_V0) {
+			fprintf(stderr, "MNIST APKO metadata is required\n");
+			binding.ops->queue_close(&queue);
+			unload_hal_plugin(&binding);
+			apollo_hexagon_unload_executable(&exe);
+			return 1;
+		}
+		ret = binding.ops->queue_submit_apko(
+			&queue, &exe, input, sizeof(input), output, sizeof(output),
+			&fence, error, sizeof(error));
+		if (ret) {
+			fprintf(stderr, "%s: %s\n", error, strerror(-ret));
+			binding.ops->queue_close(&queue);
+			unload_hal_plugin(&binding);
+			apollo_hexagon_unload_executable(&exe);
+			return 1;
+		}
+		binding.ops->queue_close(&queue);
+		unload_hal_plugin(&binding);
+		apollo_hexagon_unload_executable(&exe);
+
+		printf("IREE Apollo Hexagon HAL: command buffer submitted\n");
+		printf("IREE Apollo Hexagon HAL: offload complete queue=%u status=0x%08x\n",
+		       fence.queue_id, fence.status);
+		printf("IREE Apollo Hexagon HAL: async fence signaled queue=%u fence=%u status=0x%08x\n",
+		       fence.queue_id, fence.fence_seq, fence.status);
+		printf("EXEC @%s [apollo-hexagon]\n", exe.entry_point);
+		printf("result[0]: hal.buffer_view\n");
+		printf("4xi32=0x%08x 0x%08x 0x%08x 0x%08x\n",
+		       output[0], output[1], output[2], output[3]);
+		return 0;
+	}
+
 	memset(&cmd, 0, sizeof(cmd));
 	for (i = 0; i < APOLLO_HEXAGON_CNN_INPUT_WORDS; i++)
 		cmd.input[i] = (uint32_t)i + 1;

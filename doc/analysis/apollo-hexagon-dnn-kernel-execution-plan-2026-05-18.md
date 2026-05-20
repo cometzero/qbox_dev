@@ -579,8 +579,9 @@ smoke 경로는 Linux driver가 GEM SHMEM command BO에서 2-packet
 `LOAD_EXECUTABLE -> DISPATCH(exec-slot)` command buffer를 fetch해 QBox
 `CMDQ_DOORBELL`을 울리는 path로 연결했다. APKO negative smoke는 malformed
 `LOAD_EXECUTABLE`과 invalid IOVA `COPY` packet을 command BO로 제출해 fault record를
-검증한다. 아직 true APKO code/payload loading, true hardware BO mapping,
-CNN/MNIST CMDQ dispatch는 다음 단계다.
+검증한다. 추가 리뷰 반영으로 CNN/MNIST-like CMDQ dispatch는 Linux/UMD
+`CMD_SUBMIT` 경계에 연결됐다. 아직 true APKO code/payload loading, true hardware
+BO mapping, true MNIST ONNX model semantics는 다음 단계다.
 
 최소 command packet:
 
@@ -827,9 +828,10 @@ iree-run-module \
 
 - VMFB 안의 HAL executable data가 APKO로 전달된다.
 - UMD가 APKO를 executable handle로 load한다.
-- driver가 generic submit으로 command queue를 program한다. APKO VADD sidecar
-  경로는 1-packet `DISPATCH/VADD` CMDQ submit으로 연결됐고, VMFB 내부 executable
-  data와 CNN/MNIST CMDQ dispatch는 다음 범위다.
+- driver가 generic submit으로 command queue를 program한다. APKO VADD/CNN/MNIST-like
+  경로는 `LOAD_EXECUTABLE -> DISPATCH(exec-slot)` CMDQ submit으로 연결됐고, VMFB
+  내부 upstream HAL executable data packaging과 true MNIST model semantics는 다음
+  범위다.
 - QBox firmware/hardware가 `DISPATCH` packet을 해석한다.
 - completion IRQ/fence가 돌아온다.
 - guest log가 `tiny_cnn_graph`, `vector_add_graph`, `SUBMIT_CNN`,
@@ -941,9 +943,10 @@ review를 별도로 수행해야 한다.
 
 - 실행 계획의 현재 상태와 최종 목표를 분리한다. 이미 구현된
   `QUERY_CAPS`, context, BO lifecycle, BO binding metadata, `WAIT`,
-  `CMD_SUBMIT`, `GET_FAULT`, VADD binding-table copy shim은 foundation으로
-  기록하고, VMFB-embedded APKO, true hardware BO mapping, CNN/MNIST generic
-  dispatch는 남은 작업으로 유지한다.
+  `CMD_SUBMIT`, `GET_FAULT`, VADD/CNN/MNIST-like binding-table copy shim은
+  foundation으로 기록하고, true hardware BO mapping, true APKO payload execution,
+  true MNIST ONNX model semantics, upstream VMFB HAL executable packaging은 남은
+  작업으로 유지한다.
 - 기존 device driver는 부분 확장이 아니라 v2 resource manager로 전면 재개편한다.
   fixed CNN/VADD/DMA stress ioctl은 `apollo-hexagon-compat.c`의 transition shim으로
   한정하고, 새 중심 경로는 context, GEM BO, SMMU-visible binding, executable
@@ -975,10 +978,9 @@ review를 별도로 수행해야 한다.
    copy shim까지 갖는다. 추가 진행으로 `CMD_SUBMIT`은 2-packet command buffer를
    받아 `LOAD_EXECUTABLE -> DISPATCH(exec-slot)`을 제출한다. 남은 v2 foundation은
    true APKO code/payload loading과 true hardware BO mapping이다.
-3. 완료: APKO VADD generic submit은 `CMDQ_BASE/HEAD/TAIL/DOORBELL` register를
-   program하고 QBox `LOAD_EXECUTABLE -> DISPATCH(exec-slot)` packet으로 실행한다.
-   APKO VADD UMD happy path는 이제 `BO_CREATE/BO_BIND/CMD_SUBMIT`을 사용한다.
-   APKO CNN은 아직 legacy byte-count compatibility path를 사용한다.
+3. 완료: APKO VADD/CNN/MNIST-like generic submit은 `CMDQ_BASE/HEAD/TAIL/DOORBELL`
+   register를 program하고 QBox `LOAD_EXECUTABLE -> DISPATCH(exec-slot)` packet으로
+   실행한다. APKO UMD happy path는 이제 `BO_CREATE/BO_BIND/CMD_SUBMIT`을 사용한다.
 4. 남은 negative tests를 추가한다. 이미 추가된 범위는 APKO ABI mismatch,
    context ABI mismatch, stale context handle, bad BO size, BO create/destroy,
    stale BO handle, bad BO bind size, bad bind context/BO handle, unaligned bind
@@ -995,8 +997,20 @@ review를 별도로 수행해야 한다.
 6. Apollo IREE HAL UMD를 실제 IREE HAL driver로 붙이고 Buildroot rootfs staging을
    갱신한다.
 7. IREE/Hexagon-MLIR bridge에서 APKO v0를 VMFB HAL executable data로 package한다.
-8. VADD, CNN/MNIST 순서로 fixed ioctl smoke를 VMFB-driven APKO dispatch로
-   이동한다.
+8. VADD, CNN/MNIST-like fixed ioctl smoke를 VMFB-driven APKO dispatch로 이동했다.
+   true MNIST ONNX compile artifact와 upstream IREE VMFB HAL executable section
+   packaging은 별도 작업으로 남긴다.
+
+2026-05-21 추가 리뷰 반영:
+
+- kernel UAPI와 guest UAPI에 `APOLLO_HEXAGON_EXEC_KIND_MNIST` 및 MNIST-like
+  smoke geometry를 추가했다.
+- Linux driver `CMD_SUBMIT` scanner는 `LOAD_EXECUTABLE` metadata에서 MNIST-like
+  executable slot을 인식하고, guest HAL은 `mnist_graph`를 APKO CMDQ 경로로 제출한다.
+- 새 staging/smoke 계약은 `stage_iree_mnist_guest_artifacts.sh`와
+  `run_iree_apko_mnist_hexagon_qbox_guest_smoke.sh`에 있다. 이 artifact는 DNN kernel
+  ABI 연결 검증용 deterministic byte-invert stub이며, true MNIST ONNX 모델 compile
+  성공으로 해석하지 않는다.
 
 이 구조가 요청한 `iree compile -> VMFB -> IREE runtime -> Apollo Hexagon UMD
 -> Apollo Hexagon driver -> Apollo Hexagon hardware` 경로와 가장 잘 맞는다.

@@ -35,7 +35,8 @@ static void usage(const char *argv0)
 {
 	fprintf(stderr,
 		"usage: %s --device=apollo-hexagon --module=PATH "
-		"--function=tiny_cnn_graph|vector_add_graph [--metadata PATH] "
+		"--function=tiny_cnn_graph|vector_add_graph|mnist_graph "
+		"[--metadata PATH] "
 		"[--executable_plugin PATH] [--apollo-device PATH] "
 		"[--skip-stress] [--stress-only]\n",
 		argv0);
@@ -313,6 +314,42 @@ int main(int argc, char **argv)
 		       word_to_float(vadd_cmd.output[1]),
 		       word_to_float(vadd_cmd.output[2]),
 		       word_to_float(vadd_cmd.output[3]));
+		return 0;
+	}
+
+	if (strcmp(exe.entry_point, "mnist_graph") == 0) {
+		uint32_t input[APOLLO_HEXAGON_MNIST_INPUT_WORDS];
+		uint32_t output[APOLLO_HEXAGON_MNIST_OUTPUT_WORDS] = { 0 };
+
+		for (i = 0; i < APOLLO_HEXAGON_MNIST_INPUT_WORDS; i++)
+			input[i] = (uint32_t)i + 1;
+
+		memset(&fence, 0, sizeof(fence));
+		device->ops->queue_select(&queue, 1);
+		if (exe.executable_format != APOLLO_HEXAGON_EXEC_FORMAT_APKO_V0) {
+			fprintf(stderr, "MNIST APKO metadata is required\n");
+			close_apollo_device(device, &queue, &exe);
+			return 1;
+		}
+		ret = device->ops->queue_submit_apko(
+			&queue, &exe, input, sizeof(input), output, sizeof(output),
+			&fence, error, sizeof(error));
+		if (ret) {
+			fprintf(stderr, "%s: %s\n", error, strerror(-ret));
+			close_apollo_device(device, &queue, &exe);
+			return 1;
+		}
+		close_apollo_device(device, &queue, &exe);
+
+		printf("IREE Apollo Hexagon HAL: command buffer submitted\n");
+		printf("IREE Apollo Hexagon HAL: offload complete queue=%u status=0x%08x\n",
+		       fence.queue_id, fence.status);
+		printf("IREE Apollo Hexagon HAL: async fence signaled queue=%u fence=%u status=0x%08x\n",
+		       fence.queue_id, fence.fence_seq, fence.status);
+		printf("EXEC @%s [apollo-hexagon]\n", exe.entry_point);
+		printf("result[0]: hal.buffer_view\n");
+		printf("4xi32=0x%08x 0x%08x 0x%08x 0x%08x\n",
+		       output[0], output[1], output[2], output[3]);
 		return 0;
 	}
 

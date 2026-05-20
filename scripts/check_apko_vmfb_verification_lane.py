@@ -60,9 +60,11 @@ def repo_checks(repo: Path) -> list[Check]:
     vadd_vmfb = scripts / "run_iree_apko_vadd_vmfb_hexagon_qbox_guest_smoke.sh"
     cnn = scripts / "run_iree_apko_cnn_hexagon_qbox_guest_smoke.sh"
     cnn_vmfb = scripts / "run_iree_apko_cnn_vmfb_hexagon_qbox_guest_smoke.sh"
+    mnist = scripts / "run_iree_apko_mnist_hexagon_qbox_guest_smoke.sh"
     negative = scripts / "run_iree_apko_negative_hexagon_qbox_guest_smoke.sh"
     vector_stage = scripts / "stage_iree_vector_add_guest_artifacts.sh"
     tiny_stage = scripts / "stage_iree_tiny_cnn_guest_artifacts.sh"
+    mnist_stage = scripts / "stage_iree_mnist_guest_artifacts.sh"
     hal = (
         repo
         / "configs/buildroot/external/apollo_qbox/board/apollo/apollo-qbox/guest-tools/apollo_iree_hexagon_hal.c"
@@ -79,8 +81,8 @@ def repo_checks(repo: Path) -> list[Check]:
     add(
         checks,
         "apko_smoke_scripts_executable",
-        all(executable(path) for path in (vadd, vadd_vmfb, cnn, cnn_vmfb, negative)),
-        "APKO VADD, VMFB-embedded VADD/CNN, CNN, and negative smoke scripts are executable",
+        all(executable(path) for path in (vadd, vadd_vmfb, cnn, cnn_vmfb, mnist, negative)),
+        "APKO VADD, VMFB-embedded VADD/CNN, CNN, MNIST-like, and negative smoke scripts are executable",
     )
     add(
         checks,
@@ -146,6 +148,22 @@ def repo_checks(repo: Path) -> list[Check]:
     )
     add(
         checks,
+        "generic_mnist_cmd_submit_contract",
+        require_markers(
+            mnist,
+            (
+                "command-buffer=generic-submit",
+                "generic_abi_version=1",
+                "command dispatch executable slot=1 kind=3",
+                "command dispatch mnist",
+                "APKO CMD_SUBMIT MNIST ok",
+                "4xi32=0xfffffffe 0xfffffffd 0xfffffffc 0xfffffffb",
+            ),
+        ),
+        "MNIST-like smoke uses APKO CMD_SUBMIT plus executable-slot dispatch instead of a fixed ioctl",
+    )
+    add(
+        checks,
         "negative_ioctl_and_fault_contract",
         require_markers(
             negative,
@@ -189,6 +207,14 @@ def repo_checks(repo: Path) -> list[Check]:
                 "run_tiny_cnn_vmfb_apko_hexagon_guest.sh",
                 "apollo_hexagon_apko.vmfb.meta",
             ),
+        )
+        and require_markers(
+            mnist_stage,
+            (
+                "mnist_apollo.vmfb",
+                "run_mnist_apko_hexagon_guest.sh",
+                "apko_entry_kind=mnist",
+            ),
         ),
         "staging scripts package VMFB-embedded APKO artifacts and negative runner wrappers",
     )
@@ -217,6 +243,7 @@ def repo_checks(repo: Path) -> list[Check]:
                 "VMFB-embedded APKO VADD smoke marker",
                 "run_iree_apko_cnn_vmfb_hexagon_qbox_guest_smoke.sh",
                 "VMFB-embedded APKO CNN smoke marker",
+                "APKO MNIST-like CMD_SUBMIT smoke marker",
                 "APKO negative ioctl coverage completed",
                 "run_tiny_cnn_vmfb_apko_hexagon_guest\\.sh",
                 "command BO invalid IOVA fault ok",
@@ -232,6 +259,7 @@ def repo_checks(repo: Path) -> list[Check]:
             (
                 "repo_apko_vmfb_embedded_smoke_script",
                 "repo_apko_negative_invalid_iova_fault",
+                "repo_apko_mnist_cmdq_smoke_script",
                 "repo_iree_hexagon_vmfb_embedded_apko",
                 "apollo_apko_generic_smoke",
                 "generic_submit_slice_ready",
