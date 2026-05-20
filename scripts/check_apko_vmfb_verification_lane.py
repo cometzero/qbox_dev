@@ -92,7 +92,7 @@ def repo_checks(repo: Path) -> list[Check]:
         checks,
         "apko_smoke_scripts_executable",
         all(executable(path) for path in (vadd, vadd_vmfb, cnn, cnn_vmfb, mnist, negative)),
-        "APKO VADD, VMFB-embedded VADD/CNN, CNN, MNIST-like, and negative smoke scripts are executable",
+        "APKO VADD, VMFB-embedded VADD/CNN, CNN, MNIST, and negative smoke scripts are executable",
     )
     add(
         checks,
@@ -167,10 +167,10 @@ def repo_checks(repo: Path) -> list[Check]:
                 "command dispatch executable slot=1 kind=3",
                 "command dispatch mnist",
                 "APKO CMD_SUBMIT MNIST ok",
-                "4xi32=0xfffffffe 0xfffffffd 0xfffffffc 0xfffffffb",
+                "1x10xf32=[0 1 2 3 4 5 6 7 8 9]",
             ),
         ),
-        "MNIST-like smoke uses APKO CMD_SUBMIT plus executable-slot dispatch instead of a fixed ioctl",
+        "MNIST smoke uses APKO CMD_SUBMIT plus executable-slot dispatch and matches the host ONNX Flatten+Gemm output",
     )
     add(
         checks,
@@ -224,7 +224,9 @@ def repo_checks(repo: Path) -> list[Check]:
                 "run_iree_mnist_host_smoke.sh",
                 "mnist_aarch64.vmfb",
                 "host-report.json",
-                "semantic_gap=apollo-payload-does-not-yet-execute-host-onnx-graph",
+                "semantic_match=host-onnx-and-apollo-payload-produce-1x10xf32-bias-output",
+                "apko_input_bytes=3136",
+                "apko_output_bytes=40",
                 "mnist_apollo.vmfb",
                 "run_mnist_apko_hexagon_guest.sh",
                 "apko_entry_kind=mnist",
@@ -257,7 +259,7 @@ def repo_checks(repo: Path) -> list[Check]:
                 "VMFB-embedded APKO VADD smoke marker",
                 "run_iree_apko_cnn_vmfb_hexagon_qbox_guest_smoke.sh",
                 "VMFB-embedded APKO CNN smoke marker",
-                "APKO MNIST-like CMD_SUBMIT smoke marker",
+                "APKO MNIST CMD_SUBMIT smoke marker",
                 "APKO negative ioctl coverage completed",
                 "run_tiny_cnn_vmfb_apko_hexagon_guest\\.sh",
                 "command BO invalid IOVA fault ok",

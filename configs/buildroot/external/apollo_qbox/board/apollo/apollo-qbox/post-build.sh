@@ -114,7 +114,7 @@ if [[ -n "${iree_mnist_guest_artifacts_dir}" ]]; then
   install -d "${target_dir}/opt/qbox/iree/mnist"
   cp -a "${iree_mnist_guest_artifacts_dir}/." "${target_dir}/opt/qbox/iree/mnist/"
   cat > "${target_dir}/opt/qbox/iree/mnist/README" <<'MARKER'
-This image contains optional Apollo QBox IREE MNIST-like guest artifacts.
+This image contains optional Apollo QBox IREE MNIST guest artifacts.
 
 Run:
 

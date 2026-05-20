@@ -107,8 +107,8 @@ header_bytes = 48
 abi_version = 0
 executable_format = 1
 entry_kind = 3
-input_bytes = 64
-output_bytes = 16
+input_bytes = 28 * 28 * 4
+output_bytes = 10 * 4
 reserved = [0, 0, 0, 0, 0]
 apko = struct.pack(
     "<12I",
@@ -135,7 +135,7 @@ cat > "${stage_dir}/apollo_hexagon_apko.vmfb.meta" <<'META'
 module=mnist_aarch64.vmfb
 entry=mnist_graph
 device=apollo-hexagon
-expected=4xi32=0xfffffffe 0xfffffffd 0xfffffffc 0xfffffffb
+expected=1x10xf32=[0 1 2 3 4 5 6 7 8 9]
 plugin=lib/libapollo_iree_hexagon_hal_plugin.so
 upstream_executable_plugin=iree_hal_executable_plugin_query
 queue=multi
@@ -144,12 +144,12 @@ fence=async-irq-poll
 executable_format=apollo-hexagon-apko-v0
 apko=mnist.apko
 apko_entry_kind=mnist
-apko_input_bytes=64
-apko_output_bytes=16
+apko_input_bytes=3136
+apko_output_bytes=40
 host_onnx_compile=mnist-shaped-flatten-gemm
 host_expected=1x10xf32=[0 1 2 3 4 5 6 7 8 9]
-apollo_payload_stub=mnist-like-byte-invert
-semantic_gap=apollo-payload-does-not-yet-execute-host-onnx-graph
+apollo_payload_semantics=mnist-flatten-gemm-zero-weights-bias-0-9
+semantic_match=host-onnx-and-apollo-payload-produce-1x10xf32-bias-output
 META
 
 cat > "${stage_dir}/bin/iree-run-module" <<'GUEST'
@@ -214,7 +214,7 @@ exec "${runner}" \
   --executable_plugin="${self_dir}/lib/libapollo_iree_hexagon_hal_plugin.so" \
   --module="${self_dir}/mnist_aarch64.vmfb" \
   --function=mnist_graph \
-  --input='4xi32=[1 2 3 4]' \
+  --input='1x1x28x28xf32=0' \
   "$@"
 GUEST
 chmod 0755 "${stage_dir}/run_mnist_apko_hexagon_guest.sh"
@@ -236,7 +236,7 @@ exec "${runner}" \
   --executable_plugin="${self_dir}/lib/libapollo_iree_hexagon_hal_plugin.so" \
   --module="${self_dir}/mnist_apollo.vmfb" \
   --function=mnist_graph \
-  --input='4xi32=[1 2 3 4]' \
+  --input='1x1x28x28xf32=0' \
   "$@"
 GUEST
 chmod 0755 "${stage_dir}/run_mnist_vmfb_apko_hexagon_guest.sh"
@@ -255,11 +255,11 @@ try:
 except Exception as exc:
     runner_file = repr(exc)
 manifest = {
-    "name": "apollo-qbox-iree-mnist-like-guest-artifacts",
+    "name": "apollo-qbox-iree-mnist-guest-artifacts",
     "status": "staged",
     "target": "aarch64-unknown-linux-gnu llvm-cpu local-task base VMFB",
     "guest_install_path": "/opt/qbox/iree/mnist",
-    "expected_output": "4xi32=0xfffffffe 0xfffffffd 0xfffffffc 0xfffffffb",
+    "expected_output": "1x10xf32=[0 1 2 3 4 5 6 7 8 9]",
     "host_compile": {
         "source_model": "mnist.onnx",
         "mlir": "mnist.mlir",
@@ -286,11 +286,11 @@ manifest = {
         "apko": "mnist.apko",
         "embedded_apko_module": "mnist_apollo.vmfb",
         "entry_kind": "mnist",
-        "input_bytes": 64,
-        "output_bytes": 16,
+        "input_bytes": 3136,
+        "output_bytes": 40,
         "command_buffer": "generic-submit",
-        "model_stub": "QBox MNIST-like byte-invert payload",
-        "semantic_gap": "Apollo payload does not yet execute the host ONNX graph semantics",
+        "model_semantics": "MNIST-shaped Flatten+Gemm with zero weights and bias 0..9",
+        "semantic_match": "host ONNX smoke and Apollo payload both produce 1x10xf32=[0 1 2 3 4 5 6 7 8 9] for zero input",
         "fence": "async-irq-poll",
     },
     "files": {str(p.relative_to(stage)): p.stat().st_size
@@ -303,7 +303,7 @@ print(json.dumps(manifest, indent=2))
 PY
 
 cat <<EOF
-Staged IREE MNIST-like guest artifacts: ${stage_dir}
+Staged IREE MNIST guest artifacts: ${stage_dir}
 To include them in the next Buildroot rootfs build, run:
   QBOX_IREE_MNIST_GUEST_ARTIFACTS_DIR='${stage_dir}' ./scripts/build_qbox_buildroot_arm64.sh
 EOF

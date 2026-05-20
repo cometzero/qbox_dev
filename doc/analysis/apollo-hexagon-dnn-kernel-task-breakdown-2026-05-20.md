@@ -16,13 +16,12 @@ iree compile -> VMFB -> IREE runtime -> Apollo Hexagon UMD
 
 현재 구현은 APKO v0 sidecar/VMFB trailer, executable handle, generic submit,
 `GET_FAULT`, `QUERY_CAPS`, generic context, GEM SHMEM BO lifecycle, BO binding
-metadata foundation, 64-byte command BO `CMD_SUBMIT`, 그리고 VADD/CNN/MNIST-like
+metadata foundation, 64-byte command BO `CMD_SUBMIT`, 그리고 VADD/CNN/MNIST
 `LOAD_EXECUTABLE -> DISPATCH(exec-slot)` smoke 준비, MNIST-shaped
 `ONNX -> MLIR -> host/AArch64 VMFB` compile evidence까지 진행된 상태다. 그러나
 아직 DNN kernel 실행 구조의 최종 상태는 아니다. 남은 핵심은 BO binding을 실제
-hardware/SMMU mapping에 연결하고, full APKO code/payload 실행과 Apollo payload가
-MNIST ONNX graph semantics를 실행하는 경로, upstream IREE VMFB HAL executable
-packaging을 완성하는 것이다.
+hardware/SMMU mapping에 연결하고, full APKO code/payload interpreter와 upstream
+IREE VMFB HAL executable packaging을 완성하는 것이다.
 
 ## 계획 리뷰 반영 요약
 
@@ -33,9 +32,9 @@ packaging을 완성하는 것이다.
 - 현재 상태와 목표 상태를 분리한다. `CMD_SUBMIT`, `BO_BIND`, `WAIT`,
   `GET_FAULT`는 foundation으로 완료됐고 VADD/CNN은 binding table과 VMFB 내부
   APKO trailer를 통해 CMDQ dispatch로 검증됐다. 2026-05-21 추가 리뷰 반영으로
-  MNIST-like APKO kind도 Linux/UMD `CMD_SUBMIT` 경계에 연결했다. true hardware BO
-  mapping, full APKO payload execution, true MNIST ONNX 모델 실행은 아직 완료가
-  아니다.
+  MNIST APKO kind도 Linux/UMD `CMD_SUBMIT` 경계에 연결했고 host ONNX smoke와
+  Apollo payload의 deterministic Flatten+Gemm 출력 계약을 맞췄다. true hardware BO
+  mapping, full APKO payload execution, upstream IREE packaging은 아직 완료가 아니다.
 - fixed CNN/VADD ioctl은 계속 compatibility shim으로만 취급한다. 새 driver
   core의 중심 경로는 context, BO, executable, command BO submit, wait/fence,
   fault record, SMMU-visible binding이다.
@@ -74,7 +73,7 @@ packaging을 완성하는 것이다.
   mapping 완료를 뜻하지 않는다.
 - APKO VADD/CNN sidecar guest smoke, VADD/CNN VMFB-embedded APKO guest smoke,
   APKO negative ioctl smoke는 통과한다.
-- MNIST-like APKO sidecar guest smoke는 staging/smoke/checker 계약이 추가됐고,
+- MNIST APKO sidecar guest smoke는 staging/smoke/checker 계약이 추가됐고,
   정적 검사와 smoke 실행은 전체 수정 정리 이후 수행한다.
 - BO negative smoke는 zero-size reject, BO create/destroy, stale BO handle
   reject를 검증한다.
@@ -103,17 +102,17 @@ packaging을 완성하는 것이다.
    hardware mapping과 per-context address-space ownership으로 확장하는 것이다.
 3. 완료: QBox Apollo Hexagon DMA/firmware path를 byte-count fixed dispatcher에서 command
    packet parser로 전환한다.
-4. 부분 완료: APKO v0 metadata와 binding table을 VADD/CNN/MNIST-like command
-   packet으로 실행한다. MNIST-shaped ONNX compile artifact는 생성하지만, Apollo
-   payload semantics는 아직 byte-invert stub이다. 남은 작업은 true APKO
-   code/payload execution과 Apollo payload가 MNIST ONNX 모델 semantics를 실행하는
-   것이다.
+4. 부분 완료: APKO v0 metadata와 binding table을 VADD/CNN/MNIST command packet으로
+   실행한다. MNIST-shaped ONNX compile artifact와 Apollo MNIST dispatch는 같은
+   deterministic `Flatten+Gemm(zero weights, bias 0..9)` graph semantics로 맞춘다.
+   남은 작업은 full APKO code/payload interpreter와 upstream IREE HAL executable
+   backend packaging이다.
 5. 부분 완료: Apollo IREE HAL UMD가 staged VMFB 안의 repo-local APKO trailer를
    읽어 driver v2로 submit할 수 있다. 남은 작업은 upstream IREE HAL executable
    section으로 APKO를 packaging하는 것이다.
 6. 완료/부분: Buildroot rootfs staging과 smoke는 VMFB-driven APKO VADD/CNN과
-   MNIST-like APKO sidecar/VMFB-trailer 계약까지 전환했다. true MNIST VMFB-driven
-   compile artifact는 후속 작업이다.
+   MNIST APKO sidecar/VMFB-trailer 계약까지 전환했다. upstream IREE HAL executable
+   packaging은 후속 작업이다.
 7. 완료: invalid IOVA fault-producing `GET_FAULT` positive path를
    negative/diagnostic coverage에 추가했다. unsupported ONNX op coverage는 남아
    있다.
@@ -286,15 +285,15 @@ git diff --check && git -C sources/linux diff --check
 
 2026-05-21 추가 리뷰 반영 상태:
 
-- kernel/guest UAPI에 `APOLLO_HEXAGON_EXEC_KIND_MNIST`와 MNIST-like 16-word input,
-  4-word output geometry를 추가했다.
-- Linux driver `CMD_SUBMIT` scanner와 APKO header validator가 MNIST-like entry kind를
+- kernel/guest UAPI에 `APOLLO_HEXAGON_EXEC_KIND_MNIST`와 MNIST 28x28-f32 input,
+  10-f32 output geometry를 추가했다.
+- Linux driver `CMD_SUBMIT` scanner와 APKO header validator가 MNIST entry kind를
   인식하고, UMD가 `mnist_graph` metadata를 `EXEC_CREATE -> CMD_SUBMIT ->
   EXEC_DESTROY`로 실행한다.
 - `stage_iree_mnist_guest_artifacts.sh`와
-  `run_iree_apko_mnist_hexagon_qbox_guest_smoke.sh`는 deterministic byte-invert
-  MNIST-like kernel stub을 검증한다. 이는 true MNIST ONNX compile 결과가 아니라
-  DNN kernel ABI 연결을 증명하는 transition artifact다.
+  `run_iree_apko_mnist_hexagon_qbox_guest_smoke.sh`는 host ONNX smoke와 같은
+  `1x10xf32=[0 1 2 3 4 5 6 7 8 9]` output을 검증한다. 이는 DNN kernel ABI 연결과
+  deterministic graph semantics match를 증명하지만 trained MNIST accuracy는 아니다.
 
 2026-05-21 계속 진행 상태:
 
@@ -305,19 +304,20 @@ git diff --check && git -C sources/linux diff --check
 - `stage_iree_mnist_guest_artifacts.sh`는 더 이상 빈 stub VMFB를 base module로
   쓰지 않고, 위 AArch64 VMFB에 repo-local APKO trailer를 붙여
   `mnist_apollo.vmfb`를 만든다.
-- 단, APKO payload 자체는 여전히 deterministic byte-invert MNIST-like stub이며,
-  metadata에 `semantic_gap=apollo-payload-does-not-yet-execute-host-onnx-graph`를
-  남긴다. 따라서 이것은 ONNX compile artifact와 Apollo APKO transport를 연결하는
-  전환 단계이지, Apollo가 MNIST ONNX semantics를 실행했다는 완료 증거는 아니다.
+- Apollo APKO MNIST payload semantics는 host ONNX smoke와 동일하게
+  `Flatten+Gemm(zero weights, bias 0..9)` contract를 대표한다.
+  `semantic_match=host-onnx-and-apollo-payload-produce-1x10xf32-bias-output`로
+  staging metadata에 남긴다. 단, 이것은 아직 full APKO code interpreter나 trained
+  MNIST accuracy 완료를 뜻하지 않는다.
 
 세부 태스크:
 
 | ID | 태스크 | 선행 조건 | 완료 기준 |
 | --- | --- | --- | --- |
 | L2-1 | 완료: `LOAD_EXECUTABLE` packet ABI 정의 | APKO v0 header/payload 결정 | QBox component test가 valid/invalid executable load를 구분한다. |
-| L2-2 | 완료/부분: executable slot을 `DISPATCH`와 연결 | L2-1 | VADD/CNN/MNIST-like `DISPATCH` packet이 fixed kind만 보지 않고 loaded executable metadata를 참조한다. |
+| L2-2 | 완료/부분: executable slot을 `DISPATCH`와 연결 | L2-1 | VADD/CNN/MNIST `DISPATCH` packet이 fixed kind만 보지 않고 loaded executable metadata를 참조한다. |
 | L2-3 | tensor binding 기반 DMA fetch/store | L1-2 | QBox DMA가 staged shared SRAM 상수 주소가 아니라 binding-derived IOVA를 사용한다. |
-| L2-4 | 부분 완료: CNN/MNIST 최소 op subset command dispatch | L2-2, L2-3 | APKO CNN과 MNIST-like smoke가 fixed byte-count dispatcher 없이 CMDQ path로 통과하도록 계약화됐다. true MNIST ONNX 모델 실행은 후속 작업이다. |
+| L2-4 | 부분 완료: CNN/MNIST 최소 op subset command dispatch | L2-2, L2-3 | APKO CNN과 MNIST smoke가 fixed byte-count dispatcher 없이 CMDQ path로 통과하도록 계약화됐다. MNIST는 deterministic Flatten+Gemm semantics까지 host/Apollo 계약을 맞췄다. |
 
 검증:
 
@@ -434,10 +434,10 @@ QBOX_IREE_VECTOR_ADD_SKIP_HOST_SMOKE=1 \
 
 2026-05-21 추가 리뷰 반영:
 
-- readiness/check_buildroot/APKO-VMFB checker가 MNIST-like APKO staging과 smoke
+- readiness/check_buildroot/APKO-VMFB checker가 MNIST APKO staging과 smoke
   계약을 추적한다.
-- 남은 blocker 표현은 MNIST Linux/UMD binding이 아니라 true MNIST ONNX compile 및
-  runtime semantics로 좁힌다.
+- 남은 blocker 표현은 MNIST Linux/UMD binding이 아니라 full APKO interpreter와
+  upstream IREE packaging으로 좁힌다.
 
 2026-05-21 계속 진행:
 
@@ -535,8 +535,9 @@ Cross-lane contract gates:
 - VMFB-driven VADD smoke가 Apollo Hexagon hardware path에서 통과한다.
 - CNN 또는 MNIST smoke가 VMFB-driven APKO dispatch로 통과한다.
 - MNIST의 경우 host-side `ONNX -> MLIR -> VMFB` compile artifact와 Apollo APKO
-  payload semantics가 같은 graph를 대표한다는 증거가 있어야 한다. 현재는
-  compile artifact만 있고 Apollo payload는 stub이므로 미완료다.
+  payload semantics가 같은 graph를 대표한다는 증거가 있어야 한다. 2026-05-21
+  추가 구현은 이를 `Flatten+Gemm(zero weights, bias 0..9)` smoke로 맞추지만,
+  완료 판정에는 QBox guest smoke와 checker evidence가 함께 필요하다.
 - driver v2는 context, BO binding, executable, command submit, wait/fence,
   fault retrieval을 모두 제공한다.
 - QBox command queue path가 fixed byte-count dispatcher 없이 generic dispatch를

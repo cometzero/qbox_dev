@@ -6,7 +6,7 @@ log_dir=${QBOX_VERIFICATION_DIR:-"${repo_root}/build/verification"}
 stamp=${QBOX_APKO_MNIST_HEXAGON_GUEST_SMOKE_STAMP:-$(date +%Y%m%d-%H%M%S)}
 log_path=${QBOX_APKO_MNIST_HEXAGON_GUEST_SMOKE_LOG:-"${log_dir}/qbox-iree-apko-mnist-hexagon-guest-${stamp}.log"}
 boot_log=${QBOX_BOOT_LOG:-"${log_dir}/qbox-iree-apko-mnist-hexagon-guest-boot-${stamp}.log"}
-expected='4xi32=0xfffffffe 0xfffffffd 0xfffffffc 0xfffffffb'
+expected='1x10xf32=[0 1 2 3 4 5 6 7 8 9]'
 cmd='/opt/qbox/iree/mnist/run_mnist_apko_hexagon_guest.sh'
 
 mkdir -p "${log_dir}"
@@ -92,7 +92,7 @@ if ! grep -F "${expected}" "${log_path}" >/dev/null; then
 fi
 
 cat <<EOF
-PASS: QBox guest APKO MNIST-like output matched
+PASS: QBox guest APKO MNIST output matched
 Expected: ${expected}
 Log: ${log_path}
 Boot log: ${boot_log}

@@ -142,7 +142,7 @@ static int set_entry_defaults(struct apollo_hexagon_executable *exe,
 				"mnist_graph") ||
 		    copy_string(exe->expected_output,
 				sizeof(exe->expected_output),
-				"4xi32=0xfffffffe 0xfffffffd 0xfffffffc 0xfffffffb"))
+				"1x10xf32=[0 1 2 3 4 5 6 7 8 9]"))
 			return -ENAMETOOLONG;
 		exe->entry_kind = entry_kind;
 		if (!exe->input_bytes)

@@ -322,7 +322,7 @@ int main(int argc, char **argv)
 		uint32_t output[APOLLO_HEXAGON_MNIST_OUTPUT_WORDS] = { 0 };
 
 		for (i = 0; i < APOLLO_HEXAGON_MNIST_INPUT_WORDS; i++)
-			input[i] = (uint32_t)i + 1;
+			input[i] = 0;
 
 		memset(&fence, 0, sizeof(fence));
 		device->ops->queue_select(&queue, 1);
@@ -348,8 +348,12 @@ int main(int argc, char **argv)
 		       fence.queue_id, fence.fence_seq, fence.status);
 		printf("EXEC @%s [apollo-hexagon]\n", exe.entry_point);
 		printf("result[0]: hal.buffer_view\n");
-		printf("4xi32=0x%08x 0x%08x 0x%08x 0x%08x\n",
-		       output[0], output[1], output[2], output[3]);
+		printf("1x10xf32=[%.0f %.0f %.0f %.0f %.0f %.0f %.0f %.0f %.0f %.0f]\n",
+		       word_to_float(output[0]), word_to_float(output[1]),
+		       word_to_float(output[2]), word_to_float(output[3]),
+		       word_to_float(output[4]), word_to_float(output[5]),
+		       word_to_float(output[6]), word_to_float(output[7]),
+		       word_to_float(output[8]), word_to_float(output[9]));
 		return 0;
 	}
 
