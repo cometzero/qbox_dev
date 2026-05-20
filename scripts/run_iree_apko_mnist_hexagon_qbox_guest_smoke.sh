@@ -64,6 +64,9 @@ for marker in \
   'IREE Apollo Hexagon HAL: queues=2 command-buffer=generic-submit' \
   'IREE Apollo Hexagon HAL: generic_abi_version=1 executable_formats=0x00000002' \
   'max_bindings_per_dispatch=2' \
+  'command BO bound MNIST dispatch' \
+  'command BO TBU map' \
+  'command BO bound MNIST dispatch uses BO IOVA' \
   'APOLLO_HEXAGON_DMA: command load payload slot=1 opcode=3' \
   'APOLLO_HEXAGON_DMA: command load code slot=1 offset=0 words=2 entry=65539' \
   'APOLLO_HEXAGON_DMA: APKO code program dispatch pc=0 opcode=3' \
@@ -74,7 +77,8 @@ for marker in \
   'APOLLO_HEXAGON_DMA: command dispatch executable slot=1 kind=3' \
   'APOLLO_HEXAGON_DMA: command dispatch mnist' \
   'APOLLO_HEXAGON_DMA: command queue complete' \
-  'command BO bound MNIST output copied' \
+  'command BO bound MNIST output ready' \
+  'direct-tbu=yes' \
   'command BO submit complete' \
   'IREE Apollo Hexagon HAL: APKO CMD_SUBMIT MNIST ok' \
   'IREE Apollo Hexagon HAL: command buffer submitted' \

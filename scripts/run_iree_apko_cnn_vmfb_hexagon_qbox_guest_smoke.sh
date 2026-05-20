@@ -64,6 +64,9 @@ for marker in \
   'IREE Apollo Hexagon HAL: executable_source=vmfb-embedded-apko' \
   'IREE Apollo Hexagon HAL: queues=2 command-buffer=generic-submit' \
   'IREE Apollo Hexagon HAL: generic_abi_version=1 executable_formats=0x00000002' \
+  'command BO bound CNN dispatch' \
+  'command BO TBU map' \
+  'command BO bound CNN dispatch uses BO IOVA' \
   'APOLLO_HEXAGON_DMA: command load payload slot=1 opcode=1' \
   'APOLLO_HEXAGON_DMA: command load code slot=1 offset=0 words=2 entry=65537' \
   'APOLLO_HEXAGON_DMA: APKO code program dispatch pc=0 opcode=1' \
@@ -73,6 +76,8 @@ for marker in \
   'code_end=131072' \
   'APOLLO_HEXAGON_DMA: command dispatch executable slot=1 kind=1' \
   'APOLLO_HEXAGON_DMA: command dispatch cnn' \
+  'command BO bound CNN output ready' \
+  'direct-tbu=yes' \
   'IREE Apollo Hexagon HAL: APKO CMD_SUBMIT CNN ok' \
   'IREE Apollo Hexagon HAL: command buffer submitted' \
   'IREE Apollo Hexagon HAL: offload complete' \

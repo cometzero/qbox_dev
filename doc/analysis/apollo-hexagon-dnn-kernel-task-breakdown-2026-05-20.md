@@ -16,14 +16,16 @@ iree compile -> VMFB -> IREE runtime -> Apollo Hexagon UMD
 
 현재 구현은 APKO v0 sidecar/VMFB trailer, executable handle, generic submit,
 `GET_FAULT`, `QUERY_CAPS`, generic context, GEM SHMEM BO lifecycle, BO binding
-metadata foundation, 64-byte command BO `CMD_SUBMIT`, 그리고 VADD/CNN/MNIST
+metadata foundation, 128-byte command BO `CMD_SUBMIT`, 그리고 VADD/CNN/MNIST
 `LOAD_EXECUTABLE -> LOAD_PAYLOAD -> LOAD_CODE -> DISPATCH(exec-slot)` smoke
 준비, MNIST-shaped
-`ONNX -> MLIR -> host/AArch64 VMFB` compile evidence까지 진행된 상태다. 그러나
-아직 DNN kernel 실행 구조의 최종 상태는 아니다. 남은 핵심은 BO binding을 실제
-hardware/SMMU mapping에 연결하고, 2-word transition mini-program을 넘어서는
-full APKO code/payload interpreter와 upstream IREE VMFB HAL executable packaging을
-완성하는 것이다.
+`ONNX -> MLIR -> host/AArch64 VMFB` compile evidence까지 진행된 상태다. 2026-05-21
+추가 리뷰 반영으로 `CMD_SUBMIT`의 input/output tensor BO는 active dispatch 동안
+Apollo TBU에 원래 BO IOVA로 직접 install하고, completion 후 output BO를 CPU로
+sync한다. 그러나 아직 DNN kernel 실행 구조의 최종 상태는 아니다. 남은 핵심은
+per-context address-space ownership, command BO/ring scheduler, 2-word transition
+mini-program을 넘어서는 full APKO code/payload interpreter, upstream IREE VMFB HAL
+executable packaging을 완성하는 것이다.
 
 ## 계획 리뷰 반영 요약
 
@@ -69,11 +71,12 @@ full APKO code/payload interpreter와 upstream IREE VMFB HAL executable packagin
   - `SUBMIT`
   - `WAIT`
   - `GET_FAULT`
-- `QUERY_CAPS`는 이제 APKO command queue 2-packet buffer 크기인
-  `max_command_bytes=64`를 반환한다. VADD/CNN `CMD_SUBMIT` path가 input/output
-  BO binding 2개를 소비하는 transitional copy shim을 갖게 되어
-  `max_bindings_per_dispatch=2`를 반환한다. 이는 아직 실제 Apollo TBU/SMMU page
-  mapping 완료를 뜻하지 않는다.
+- `QUERY_CAPS`는 이제 APKO command queue 4-packet buffer 크기인
+  `max_command_bytes=128`를 반환한다. VADD/CNN/MNIST `CMD_SUBMIT` path가
+  input/output BO binding 2개를 소비하고, active dispatch 동안 해당 GEM SHMEM
+  page를 Apollo TBU에 원래 BO IOVA로 직접 매핑하므로
+  `max_bindings_per_dispatch=2`를 반환한다. 이는 아직 complete per-context SMMU
+  address space나 command ring ownership 완료를 뜻하지 않는다.
 - APKO VADD/CNN sidecar guest smoke, VADD/CNN VMFB-embedded APKO guest smoke,
   APKO negative ioctl smoke는 통과한다.
 - MNIST APKO sidecar guest smoke는 staging/smoke/checker 계약이 추가됐고,
@@ -86,23 +89,25 @@ full APKO code/payload interpreter와 upstream IREE VMFB HAL executable packagin
 - WAIT negative/positive smoke는 bad size, zero fence, bad queue, completed
   fence wait, future fence timeout을 검증한다.
 - command BO submit foundation은 `CMD_SUBMIT` ioctl, guest UAPI mirror, negative
-  smoke helper까지 추가됐다. 현재 범위는 GEM SHMEM command BO에서 32-byte command
-  packet을 fetch해 QBox CMDQ doorbell로 실행하고 CMDQ status/fence metadata를
+  smoke helper까지 추가됐다. 현재 범위는 GEM SHMEM command BO에서 bounded APKO
+  command buffer를 fetch해 QBox CMDQ doorbell로 실행하고 CMDQ status/fence metadata를
   반환하는 단계이며, invalid IOVA COPY packet으로 만든 CMDQ DMA fault를
-  `GET_FAULT`로 회수하는 positive path도 포함한다. 추가 진행으로 VADD/CNN
+  `GET_FAULT`로 회수하는 positive path도 포함한다. 추가 진행으로 VADD/CNN/MNIST
   `DISPATCH` packet의 staged input/output IOVA는 context binding table을 조회해
-  input BO를 shared SRAM으로 복사하고, completion 후 output BO로 결과를 되돌리는
-  transitional binding-table 소비 path를 갖는다. APKO VADD/CNN command BO는
-  `LOAD_EXECUTABLE -> DISPATCH(exec-slot)` 2-packet buffer를 제출한다.
+  input/output GEM refs를 잡고, active dispatch 동안 BO SHMEM pages를 Apollo TBU에
+  직접 매핑한 뒤 output BO를 CPU로 sync한다. APKO VADD/CNN/MNIST command BO는
+  `LOAD_EXECUTABLE -> LOAD_PAYLOAD -> LOAD_CODE -> DISPATCH(exec-slot)` command
+  buffer를 제출한다.
 - QBox SMMU는 functional integration slice로 검증 중이며, bit-exact Arm SMMUv3
   구현이라고 주장하지 않는다.
 
 ## 남은 작업 요약
 
 1. 완료: Linux driver v2 UAPI를 command BO submit foundation까지 확장했다.
-2. 완료/부분: VADD/CNN `CMD_SUBMIT`은 binding table을 소비하는 transitional copy shim을
-   갖는다. 남은 작업은 Apollo TBU/SMMU-visible IOVA binding metadata를 실제
-   hardware mapping과 per-context address-space ownership으로 확장하는 것이다.
+2. 완료/부분: VADD/CNN/MNIST `CMD_SUBMIT`은 binding table을 소비하고 active
+   dispatch 동안 tensor BO를 Apollo TBU에 직접 매핑한다. 남은 작업은 이 임시 map
+   helper를 per-context address-space ownership, map-table exhaustion policy,
+   command BO/ring ownership으로 확장하는 것이다.
 3. 완료: QBox Apollo Hexagon DMA/firmware path를 byte-count fixed dispatcher에서 command
    packet parser로 전환한다.
 4. 부분 완료: APKO v0 metadata와 binding table을 VADD/CNN/MNIST command packet으로
@@ -134,13 +139,14 @@ full APKO code/payload interpreter와 upstream IREE VMFB HAL executable packagin
 - 완료: context별 binding xarray를 만들고 BO handle을 staged
   IOVA/usage/offset/length metadata와 연결한다. bind는 output/reserved field와
   staged IOVA overflow를 검증하고, unbind는 size/flags도 검증한다.
-- 부분 완료: VADD/CNN `CMD_SUBMIT` path는 staged IOVA를 context binding table에서
-  조회해 input/output BO를 소비한다. 남음: staged IOVA metadata를 실제 GEM
-  page/SMMU/TBU mapping으로 연결한다.
+- 부분 완료: VADD/CNN/MNIST `CMD_SUBMIT` path는 staged IOVA를 context binding table에서
+  조회해 input/output BO를 소비하고, active dispatch 동안 해당 SHMEM pages를 Apollo
+  TBU에 직접 매핑한다. 남음: per-context address-space ownership, command ring
+  scheduler, map-table exhaustion policy다.
 - 추가 리뷰 반영: `CMD_SUBMIT`은 더 이상 file-level `afile->lock`을 잡은 채
   QBox CMDQ completion을 기다리지 않는다. Binding table은 lock 안에서 짧게
-  해석하고, output BO는 `drm_gem_object_get()`으로 ref를 잡아 wait 이후
-  output copy-back까지 lifetime을 보장한다.
+  해석하고, input/output BO는 `drm_gem_object_get()`으로 ref를 잡아 wait와
+  TBU unmap까지 lifetime을 보장한다.
 - 완료: command BO submit UAPI를 append-only로 추가했다. 기존 `SUBMIT`의 userspace
   `input_ptr/output_ptr` 경로는 transitional APKO smoke용으로 유지하되, 새 path는
   context handle, command BO handle, command offset/size, queue id만 받는다. 첫
@@ -152,21 +158,23 @@ full APKO code/payload interpreter와 upstream IREE VMFB HAL executable packagin
   output BO ref cleanup, CMDQ wait helper를 `apollo-hexagon-cmdq.c`로 분리했다.
   `apollo-hexagon-exec.c`는 executable handle과 submit orchestration 중심으로
   좁혔다.
-- `QUERY_CAPS.max_command_bytes`는 `CMD_SUBMIT`/APKO VADD CMDQ smoke가
-  `LOAD_EXECUTABLE -> DISPATCH(exec-slot)` 2-packet buffer를 사용하므로 64로
-  올렸다. VADD command BO submit이 input/output BO binding 2개를 소비하므로
-  `max_bindings_per_dispatch=2`를 반환한다. 단, 현재는 QBox shared SRAM copy shim이며
-  true hardware BO page mapping은 남아 있다.
+- `QUERY_CAPS.max_command_bytes`는 `CMD_SUBMIT`/APKO VADD/CNN/MNIST CMDQ smoke가
+  `LOAD_EXECUTABLE -> LOAD_PAYLOAD -> LOAD_CODE -> DISPATCH(exec-slot)` 4-packet
+  buffer를 사용하므로 128로 올렸다. VADD/CNN/MNIST command BO submit이
+  input/output BO binding 2개를 소비하고 tensor BO pages를 active dispatch 동안
+  Apollo TBU에 직접 매핑하므로
+  `max_bindings_per_dispatch=2`를 반환한다. 단, complete per-context SMMU address
+  space와 command ring scheduler는 남아 있다.
 
 세부 태스크:
 
 | ID | 태스크 | 선행 조건 | 완료 기준 |
 | --- | --- | --- | --- |
 | L1-1 | 완료: context binding table을 command submit에서 조회하는 helper 추가 | `BO_BIND/UNBIND`, `CMD_SUBMIT` foundation | VADD/CNN command packet의 staged IOVA가 bind table entry와 매칭된다. |
-| L1-2 | 부분 완료: GEM SHMEM BO와 Apollo TBU/SMMU-visible IOVA 연결 | L1-1 | `max_bindings_per_dispatch=2`는 transitional copy shim evidence로만 올렸다. 실제 page mapping은 남아 있다. |
-| L1-3 | 완료: command BO가 tensor BO input/output을 소비하는 VADD/CNN path | L1-1, L1-2 | UMD가 userspace pointer `SUBMIT` 없이 BO create/bind/CMD_SUBMIT만으로 VADD/CNN output BO를 읽는다. |
+| L1-2 | 부분 완료: GEM SHMEM BO와 Apollo TBU/SMMU-visible IOVA 연결 | L1-1 | VADD/CNN/MNIST active dispatch가 tensor BO pages를 original BO IOVA로 TBU에 직접 매핑한다. 남은 범위는 per-context address space와 map-table 정책이다. |
+| L1-3 | 완료: command BO가 tensor BO input/output을 소비하는 VADD/CNN/MNIST path | L1-1, L1-2 | UMD가 userspace pointer `SUBMIT` 없이 BO create/bind/CMD_SUBMIT만으로 VADD/CNN/MNIST output BO를 읽는다. |
 | L1-4 | 부분 완료: executable metadata를 command submit과 연결 | `EXEC_CREATE`, L1-3 | `LOAD_EXECUTABLE` metadata slot이 command queue dispatch의 검증 입력으로 사용된다. 실제 code/payload loading은 남아 있다. |
-| L1-5 | 부분 완료: submit/fault/iommu/cmdq file split 정리 | L1-1 이후 | `apollo-hexagon-cmdq.c`가 command BO/APKO packet parser와 CMDQ wait helper를 담당한다. 남은 정리는 true hardware BO mapping과 command ring scheduler boundary다. |
+| L1-5 | 부분 완료: submit/fault/iommu/cmdq file split 정리 | L1-1 이후 | `apollo-hexagon-cmdq.c`가 command BO/APKO packet parser와 CMDQ wait helper를 담당한다. 남은 정리는 per-context address-space ownership과 command ring scheduler boundary다. |
 
 완료 기준:
 
@@ -176,8 +184,8 @@ full APKO code/payload interpreter와 upstream IREE VMFB HAL executable packagin
   userspace-specified overlapping IOVA case는 아직 없다.
 - file close에서 context/executable/BO binding lifetime이 정리된다.
 - `CMD_SUBMIT` 중 concurrent BO unbind/context destroy가 들어와도 command wait는
-  file-level lock을 장시간 점유하지 않고, 이미 잡은 output GEM ref로 copy-back
-  lifetime을 보장한다.
+  file-level lock을 장시간 점유하지 않고, 이미 잡은 input/output GEM ref로 TBU
+  map/unmap과 output CPU sync lifetime을 보장한다.
 - 기존 fixed CNN/VADD/DMA stress ioctl 번호와 동작이 유지된다.
 
 검증:
@@ -258,10 +266,11 @@ git diff --check && git -C sources/linux diff --check
   malformed queue geometry, COPY packet DMA fault, `NOP/COPY/BARRIER/SIGNAL_FENCE`
   성공 실행, `DISPATCH/VADD` 성공 실행, `DISPATCH/VADD` DMA fault와 completion을
   검증한다.
-- Linux driver의 APKO VADD generic submit은 이제 shared SRAM에 32-byte
-  `DISPATCH/VADD` packet을 쓰고 `CMDQ_BASE/HEAD/TAIL/DOORBELL` register를
-  program한다. 기존 APKO CNN과 fixed CNN/VADD ioctl은 compatibility path로 남겨
-  회귀 범위를 줄였다.
+- Linux driver의 APKO VADD generic submit은 이제 command BO에서
+  `DISPATCH/VADD` packet을 읽고 `CMDQ_BASE/HEAD/TAIL/DOORBELL` register를
+  program한다. command packet 자체는 shared CMDQ window에 stage되지만,
+  input/output tensor BO는 original BO IOVA로 Apollo TBU에 직접 매핑한다. 기존 fixed
+  CNN/VADD ioctl은 compatibility path로 남겨 회귀 범위를 줄였다.
 - Linux driver의 command BO submit foundation도 추가됐다. `CMD_SUBMIT`은
   userspace pointer 대신 GEM SHMEM command BO handle과 offset/size를 받아
   32-byte packet을 fetch하고, QBox CMDQ doorbell 완료 후 CMDQ status/result/fence를
@@ -282,8 +291,9 @@ git diff --check && git -C sources/linux diff --check
 2026-05-21 리뷰 반영 상태:
 
 - Linux driver `CMD_SUBMIT` scanner는 VADD뿐 아니라 CNN `LOAD_EXECUTABLE` metadata와
-  executable-slot dispatch를 인식한다. input/output BO binding을 shared SRAM window로
-  patch한 뒤 QBox CMDQ doorbell을 울리고, completion 후 output BO로 결과를 복사한다.
+  executable-slot dispatch를 인식한다. 2026-05-21 direct-BO-TBU 리뷰 반영 이후
+  input/output BO binding은 shared SRAM window로 patch하지 않고 original BO IOVA를
+  유지한 채 Apollo TBU에 직접 매핑한다.
 - QBox DMA 모델의 executable-slot CNN dispatch는 tiny-CNN canonical output
   `1x1x2x2xf32=[[[54 63][90 99]]]`을 반환한다. 이 당시에는 MNIST-like direct
   dispatch stub만 있었고 Linux/UMD binding은 아직 연결하지 않았다.
@@ -323,7 +333,7 @@ git diff --check && git -C sources/linux diff --check
 | --- | --- | --- | --- |
 | L2-1 | 완료: `LOAD_EXECUTABLE` packet ABI 정의 | APKO v0 header/payload 결정 | QBox component test가 valid/invalid executable load를 구분한다. |
 | L2-2 | 완료/부분: executable slot을 `DISPATCH`와 연결 | L2-1 | VADD/CNN/MNIST `DISPATCH` packet이 fixed kind만 보지 않고 loaded executable metadata를 참조한다. |
-| L2-3 | tensor binding 기반 DMA fetch/store | L1-2 | QBox DMA가 staged shared SRAM 상수 주소가 아니라 binding-derived IOVA를 사용한다. |
+| L2-3 | 완료/부분: tensor binding 기반 DMA fetch/store | L1-2 | QBox DMA가 staged shared SRAM 상수 주소가 아니라 binding-derived IOVA를 사용한다. 남은 범위는 per-context address space와 command BO/ring mapping이다. |
 | L2-4 | 부분 완료: CNN/MNIST 최소 op subset command dispatch | L2-2, L2-3 | APKO CNN과 MNIST smoke가 fixed byte-count dispatcher 없이 CMDQ path로 통과하도록 계약화됐다. MNIST는 deterministic Flatten+Gemm semantics까지 host/Apollo 계약을 맞췄다. |
 
 검증:
@@ -582,7 +592,7 @@ Cross-lane contract gates:
   `APOLLO_HEXAGON_CMDQ_OPCODE_LOAD_PAYLOAD`, `APOLLO_HEXAGON_CMDQ_OPCODE_LOAD_CODE`,
   APKO `PAYL`/`CODE` descriptor 상수를 추가했다.
 - Linux driver `CMD_SUBMIT` scanner는 valid `LOAD_PAYLOAD`와 `LOAD_CODE`를 모두 본
-  경우에만 executable-slot dispatch를 BO binding copy shim 대상으로 인정한다.
+  경우에만 executable-slot dispatch를 BO binding direct-TBU 대상으로 인정한다.
 - QBox `apollo_hexagon_dma`는 `LOAD_EXECUTABLE`에서 payload opcode를 더 이상
   자동 생성하지 않는다. `LOAD_PAYLOAD` 또는 `LOAD_CODE`가 없거나 payload opcode와
   code entry kind가 맞지 않으면 malformed fault를 낸다.
@@ -625,8 +635,9 @@ Cross-lane contract gates:
 
 - APKO payload는 이제 최소 code section 계약을 갖지만, 아직 실제 Hexagon code
   blob/interpreter가 아니라 opcode word 기반 transition program이다.
-- command BO input/output은 여전히 Linux driver의 QBox shared-window copy shim을
-  거친다. true hardware BO/SMMU/TBU page mapping은 별도 작업이다.
+- command packet 자체는 아직 Linux driver가 QBox shared CMDQ window에 stage한다.
+  input/output tensor BO는 direct TBU map으로 전환했으며, 남은 작업은 complete
+  per-context SMMU address space, command BO/ring scheduler, executable BO/code DMA다.
 - VMFB trailer는 repo-local transition ABI다. upstream IREE HAL executable section
   packaging 완료로 주장하지 않는다.
 

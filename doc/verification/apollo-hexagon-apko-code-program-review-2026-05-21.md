@@ -54,8 +54,10 @@ APOLLO_HEXAGON_DMA: APKO code program end pc=1
 
 ## 남은 Blocker
 
-- command BO input/output은 여전히 Linux driver의 QBox shared-window copy shim을
-  거친다. true hardware BO/SMMU/TBU page mapping은 별도 작업이다.
+- 후속 direct-BO-TBU 리뷰 반영으로 command BO input/output tensor는 더 이상
+  QBox shared-window copy shim을 거치지 않는다. 다만 이 문서의 검증 실행 당시에는
+  해당 direct map 변경 전 상태였으므로, 최신 증거는 별도 direct-BO-TBU 검증 문서에
+  기록한다.
 - APKO `CODE` program은 2-word transition ABI다. full nontrivial APKO instruction
   execution 또는 실제 Hexagon binary execution은 아직 미완료다.
 - VMFB trailer는 repo-local transition packaging이다. upstream IREE HAL executable
