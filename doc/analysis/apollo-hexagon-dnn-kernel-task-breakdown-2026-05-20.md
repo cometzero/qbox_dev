@@ -594,6 +594,10 @@ Cross-lane contract gates:
 - Linux driver와 QBox command queue는 `LOAD_PAYLOAD` packet의 code word count와
   entry word를 검증한다. QBox component test는 missing code words를 malformed
   fault로 확인한다.
+- 추가 진행으로 Linux driver와 QBox model은 executable-slot dispatch kind를
+  `LOAD_EXECUTABLE.entry_kind`에서 자동 선택하지 않고, 검증된 `CODE` entry word를
+  실행 선택 기준으로 사용한다. QBox component test는 bad code entry를 별도
+  malformed fault로 확인한다.
 
 남은 gap은 그대로 유지한다.
 

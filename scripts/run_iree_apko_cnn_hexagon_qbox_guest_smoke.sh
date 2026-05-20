@@ -42,6 +42,7 @@ for marker in \
   'IREE Apollo Hexagon HAL: generic_abi_version=1 executable_formats=0x00000002' \
   'APOLLO_HEXAGON_DMA: command load payload slot=1 opcode=1' \
   'code_words=1' \
+  'code_entry=1' \
   'APOLLO_HEXAGON_DMA: command dispatch executable slot=1 kind=1' \
   'APOLLO_HEXAGON_DMA: command dispatch cnn' \
   'IREE Apollo Hexagon HAL: APKO CMD_SUBMIT CNN ok' \

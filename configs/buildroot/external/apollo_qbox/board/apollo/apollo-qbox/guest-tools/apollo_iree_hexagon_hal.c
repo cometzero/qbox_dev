@@ -688,9 +688,9 @@ static int apollo_hexagon_queue_submit_apko_cmdq(
 	fence->signaled = 1;
 	fence->queue_id = submit.queue_id;
 	fence->fence_seq = submit.fence_seq;
-	printf("IREE Apollo Hexagon HAL: APKO CMD_SUBMIT %s ok executable=%u exec_slot=%u payload_opcode=%u code_words=%u ctx=%u cmd_bo=%u input_bind=%u output_bind=%u queue=%u fence=%u status=0x%08x result=0x%08x\n",
+	printf("IREE Apollo Hexagon HAL: APKO CMD_SUBMIT %s ok executable=%u exec_slot=%u payload_opcode=%u code_words=%u code_entry=%u ctx=%u cmd_bo=%u input_bind=%u output_bind=%u queue=%u fence=%u status=0x%08x result=0x%08x\n",
 	       apollo_hexagon_exec_kind_name(entry_kind), executable_handle,
-	       exec_slot, payload_opcode, code_words, context_handle,
+	       exec_slot, payload_opcode, code_words, entry_word, context_handle,
 	       command_bo.handle, input_bind.handle, output_bind.handle,
 	       submit.queue_id, submit.fence_seq, submit.status, submit.result);
 	ret = 0;

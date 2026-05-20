@@ -6,7 +6,9 @@
 `LOAD_EXECUTABLE -> LOAD_PAYLOAD -> DISPATCH(exec-slot)` 3-packet 계약으로
 갱신했다. 기존 QBox model은 `LOAD_EXECUTABLE.entry_kind`에서 payload opcode를
 자동 생성했지만, 이제 APKO byte stream의 `PAYL` descriptor와 `CODE` descriptor를
-UMD가 읽어 `LOAD_PAYLOAD` packet으로 명시 전달한다.
+UMD가 읽어 `LOAD_PAYLOAD` packet으로 명시 전달한다. 추가 진행으로
+executable-slot dispatch의 model-kernel 선택은 `LOAD_EXECUTABLE.entry_kind`가 아니라
+검증된 `CODE` entry word를 기준으로 한다.
 
 이 리포트는 repo-local transition slice의 검증 결과다. full APKO code interpreter,
 true hardware BO mapping, upstream IREE HAL executable packaging 완료 증거는 아니다.
@@ -27,7 +29,7 @@ true hardware BO mapping, upstream IREE HAL executable packaging 완료 증거�
 
 ```bash
 bash -n scripts/*.sh
-PYTHONPYCACHEPREFIX=/tmp/qbox-pycache-apko-code \
+PYTHONPYCACHEPREFIX=/tmp/qbox-pycache-apko-entry \
   python3 -m py_compile \
   scripts/check_apko_vmfb_verification_lane.py \
   scripts/check_iree_cnn_pipeline_readiness.py
@@ -40,9 +42,9 @@ ctest --test-dir sources/qbox/build -R '^apollo-hexagon-dma-tests$' \
   --output-on-failure
 ./scripts/build_apollo_hexagon_guest_tools.sh
 python3 scripts/check_iree_cnn_pipeline_readiness.py --repo . \
-  --json build/verification/iree-readiness-code-check.json
+  --json build/verification/iree-readiness-entry-check.json
 python3 scripts/check_apko_vmfb_verification_lane.py --repo . \
-  --json build/verification/apko-vmfb-code-check.json
+  --json build/verification/apko-vmfb-entry-check.json
 ./scripts/check_buildroot_arm64_lane.sh
 git diff --check
 git -C sources/linux diff --check
@@ -67,9 +69,13 @@ git -C sources/qbox diff --check
 - `LOAD_EXECUTABLE`만으로 executable-slot dispatch를 실행할 수 없다.
 - `LOAD_PAYLOAD`는 `PAYL` magic, version, descriptor word count, payload opcode,
   `CODE` word count, entry word를 검증한다.
+- Linux driver와 QBox model은 executable-slot dispatch kind를 `CODE` entry word에서
+  가져온다.
 - QBox component test가 missing payload와 bad payload opcode를 malformed fault로
   확인한다.
 - QBox component test가 `LOAD_PAYLOAD`의 missing code words를 malformed fault로
+  확인한다.
+- QBox component test가 payload opcode와 code entry mismatch를 malformed fault로
   확인한다.
 - guest HAL은 APKO payload/code descriptor를 읽은 뒤 command BO에
   `LOAD_PAYLOAD`를 추가한다.

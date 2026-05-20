@@ -1061,6 +1061,18 @@ review를 별도로 수행해야 한다.
   중간 ABI로 전진했다. 남은 단계는 이 code section을 실제 executable BO/code DMA
   또는 interpreter 입력으로 소비하는 것이다.
 
+2026-05-21 추가 계속 진행:
+
+- Linux driver의 bound-dispatch scanner는 executable-slot dispatch kind를
+  `LOAD_EXECUTABLE.entry_kind`가 아니라 검증된 APKO `CODE` entry word에서 가져온다.
+- QBox command queue도 `execute_apko_payload_program()`에서 `PAYL` opcode가 아닌
+  `CODE` entry word를 switch 기준으로 사용한다. 현재 entry word는 아직 VADD/CNN/MNIST
+  built-in model-kernel selector지만, 실행 의미가 APKO code section에서 온다는
+  계약을 명시적으로 만든다.
+- guest HAL과 smoke marker는 `code_words`와 함께 `code_entry`를 출력/검증하고,
+  QBox component test는 payload opcode와 code entry가 다른 경우를 malformed
+  `LOAD_PAYLOAD`로 확인한다.
+
 이 구조가 요청한 `iree compile -> VMFB -> IREE runtime -> Apollo Hexagon UMD
 -> Apollo Hexagon driver -> Apollo Hexagon hardware` 경로와 가장 잘 맞는다.
 driver는 graph runtime이 아니라 accelerator resource manager가 되고, DNN
