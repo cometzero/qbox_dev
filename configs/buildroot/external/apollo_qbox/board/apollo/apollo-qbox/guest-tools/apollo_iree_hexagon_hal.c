@@ -244,7 +244,8 @@ static int read_apko_payload_program(const void *data, size_t size,
 				     uint32_t entry_kind,
 				     uint32_t *payload_opcode,
 				     uint32_t *code_words,
-				     uint32_t *entry_word)
+				     uint32_t *entry_word,
+				     uint32_t *end_word)
 {
 	struct drm_apollo_hexagon_apko_header header;
 	uint32_t descriptor[APOLLO_HEXAGON_APKO_PAYLOAD_DESCRIPTOR_WORDS];
@@ -280,7 +281,7 @@ static int read_apko_payload_program(const void *data, size_t size,
 	if (code_desc[0] != APOLLO_HEXAGON_APKO_CODE_MAGIC ||
 	    code_desc[1] != APOLLO_HEXAGON_APKO_CODE_VERSION ||
 	    code_desc[3] != APOLLO_HEXAGON_APKO_CODE_DESCRIPTOR_WORDS ||
-	    code_desc[2] == 0)
+	    code_desc[2] != APOLLO_HEXAGON_APKO_CODE_PROGRAM_WORDS)
 		return -EINVAL;
 
 	code_offset = code_desc_offset + sizeof(code_desc);
@@ -290,8 +291,12 @@ static int read_apko_payload_program(const void *data, size_t size,
 	*payload_opcode = descriptor[2];
 	*code_words = code_desc[2];
 	memcpy(entry_word, bytes + code_offset, sizeof(*entry_word));
+	memcpy(end_word, bytes + code_offset + sizeof(*entry_word),
+	       sizeof(*end_word));
 	if ((*entry_word & APOLLO_HEXAGON_APKO_CODE_OP_MASK) !=
 	    APOLLO_HEXAGON_APKO_CODE_OP_MODEL_DISPATCH)
+		return -EINVAL;
+	if (*end_word != APOLLO_HEXAGON_APKO_CODE_OP_END)
 		return -EINVAL;
 	code_entry_kind = *entry_word &
 			  APOLLO_HEXAGON_APKO_CODE_MODEL_MASK;
@@ -577,8 +582,8 @@ static int unbind_bo(int fd, uint32_t context_handle,
 static int apollo_hexagon_queue_submit_apko_cmdq(
 	struct apollo_hexagon_queue *queue, uint32_t executable_handle,
 	uint32_t entry_kind, uint32_t payload_opcode, uint32_t code_words,
-	uint32_t entry_word, const void *input, size_t input_bytes,
-	void *output, size_t output_bytes,
+	uint32_t entry_word, uint32_t end_word, const void *input,
+	size_t input_bytes, void *output, size_t output_bytes,
 	struct apollo_hexagon_fence *fence, char *error, size_t error_len)
 {
 	struct drm_apollo_hexagon_context_create context;
@@ -667,9 +672,9 @@ static int apollo_hexagon_queue_submit_apko_cmdq(
 	packet[2] = APOLLO_HEXAGON_APKO_CODE_MAGIC;
 	packet[3] = APOLLO_HEXAGON_APKO_CODE_VERSION;
 	packet[4] = 0;
-	packet[5] = 1;
+	packet[5] = code_words;
 	packet[6] = entry_word;
-	packet[7] = 0;
+	packet[7] = end_word;
 	packet += APOLLO_HEXAGON_CMDQ_PACKET_WORDS;
 	packet[0] = APOLLO_HEXAGON_CMDQ_OPCODE_DISPATCH;
 	packet[1] = APOLLO_HEXAGON_CMDQ_DISPATCH_EXEC_SLOT_FLAG | exec_slot;
@@ -703,11 +708,12 @@ static int apollo_hexagon_queue_submit_apko_cmdq(
 	fence->signaled = 1;
 	fence->queue_id = submit.queue_id;
 	fence->fence_seq = submit.fence_seq;
-	printf("IREE Apollo Hexagon HAL: APKO CMD_SUBMIT %s ok executable=%u exec_slot=%u payload_opcode=%u code_words=%u code_entry=%u ctx=%u cmd_bo=%u input_bind=%u output_bind=%u queue=%u fence=%u status=0x%08x result=0x%08x\n",
+	printf("IREE Apollo Hexagon HAL: APKO CMD_SUBMIT %s ok executable=%u exec_slot=%u payload_opcode=%u code_words=%u code_entry=%u code_end=%u ctx=%u cmd_bo=%u input_bind=%u output_bind=%u queue=%u fence=%u status=0x%08x result=0x%08x\n",
 	       apollo_hexagon_exec_kind_name(entry_kind), executable_handle,
-	       exec_slot, payload_opcode, code_words, entry_word, context_handle,
-	       command_bo.handle, input_bind.handle, output_bind.handle,
-	       submit.queue_id, submit.fence_seq, submit.status, submit.result);
+	       exec_slot, payload_opcode, code_words, entry_word, end_word,
+	       context_handle, command_bo.handle, input_bind.handle,
+	       output_bind.handle, submit.queue_id, submit.fence_seq,
+	       submit.status, submit.result);
 	ret = 0;
 
 out_output_unbind:
@@ -1137,6 +1143,7 @@ int apollo_hexagon_queue_submit_apko(
 	uint32_t payload_opcode = 0;
 	uint32_t code_words = 0;
 	uint32_t entry_word = 0;
+	uint32_t end_word = 0;
 	int ret;
 
 	if ((!exe->apko_path[0] && !exe->apko_data) ||
@@ -1188,10 +1195,11 @@ int apollo_hexagon_queue_submit_apko(
 	    queue->max_command_bytes >= APOLLO_HEXAGON_CMDQ_SUBMIT_MAX_BYTES &&
 	    queue->max_bindings_per_dispatch >= 2) {
 		ret = read_apko_payload_program(create_data, apko_size,
-						create.entry_kind,
-						&payload_opcode,
-						&code_words,
-						&entry_word);
+							create.entry_kind,
+							&payload_opcode,
+							&code_words,
+							&entry_word,
+							&end_word);
 		if (ret) {
 			if (ret != -ENODATA) {
 				set_error(error, error_len,
@@ -1202,9 +1210,9 @@ int apollo_hexagon_queue_submit_apko(
 		} else {
 			ret = apollo_hexagon_queue_submit_apko_cmdq(
 				queue, create.handle, create.entry_kind,
-				payload_opcode, code_words, entry_word, input,
-				input_bytes, output, output_bytes, fence, error,
-				error_len);
+				payload_opcode, code_words, entry_word,
+				end_word, input, input_bytes, output,
+				output_bytes, fence, error, error_len);
 			goto out_destroy;
 		}
 	}

@@ -120,10 +120,11 @@ git -C sources/qbox diff --check
   - log: `build/verification/qbox-iree-apko-vadd-hexagon-guest-20260521-044848.log`
   - boot log: `build/verification/qbox-iree-apko-vadd-hexagon-guest-boot-20260521-044848.log`
   - markers: `max_command_bytes=128`, `command BO LOAD_PAYLOAD slot=1 opcode=2`,
-    `command BO LOAD_CODE slot=1 offset=0 words=1 entry_word=65538`,
-    `APOLLO_HEXAGON_DMA: command load code slot=1 offset=0 words=1 entry=65538`,
+    `command BO LOAD_CODE slot=1 offset=0 words=2 entry_word=65538 end_word=131072`,
+    `APOLLO_HEXAGON_DMA: command load code slot=1 offset=0 words=2 entry=65538 end=131072`,
     `IREE Apollo Hexagon HAL: APKO CMD_SUBMIT VADD ok`, `4xf32=11 22 33 44`
-- staged APKO code-entry words: VADD `65538`, CNN `65537`, MNIST `65539`
+- staged APKO code programs: VADD `65538, 131072`, CNN `65537, 131072`,
+  MNIST `65539, 131072`. `131072` is `APKO_CODE_OP_END`.
 - diff whitespace checks: PASS
 
 ## 재검증 중 확인한 artifact skew
@@ -161,15 +162,15 @@ git -C sources/qbox diff --check
   submit path로 fallback한다. descriptor가 존재하지만 내용이 잘못된 경우는 오류로
   처리한다.
 - VADD, CNN, MNIST staging artifact는 APKO header 뒤에 `PAYL` descriptor,
-  `CODE` descriptor, 최소 1-word transition code payload를 포함한다. 해당 code word는
-  `MODEL_DISPATCH | model-kind` 형식이다.
+  `CODE` descriptor, 2-word transition code payload를 포함한다. 첫 instruction은
+  `MODEL_DISPATCH | model-kind`, 두 번째 instruction은 `APKO_CODE_OP_END`이다.
 - guest HAL, Linux driver, QBox model은 `APOLLO_HEXAGON_APKO_CODE_OP_MODEL_DISPATCH`
-  opcode와 low 16-bit model kind를 decode한 뒤에만 executable-slot dispatch를
-  허용한다.
+  opcode와 low 16-bit model kind를 decode하고 `APKO_CODE_OP_END` terminator까지
+  확인한 뒤에만 executable-slot dispatch를 허용한다.
 
 ## 남은 작업
 
-- APKO `CODE` section을 실제 Hexagon code blob/interpreter 또는 executable BO/code
-  DMA 입력으로 연결한다.
+- APKO `CODE` section은 현재 2-word mini program까지 검증한다. 다음 단계는 이를
+  실제 Hexagon code blob/interpreter 또는 executable BO/code DMA 입력으로 연결하는 것이다.
 - Linux driver copy shim을 true BO/SMMU/TBU page mapping으로 바꾼다.
 - VMFB trailer transition ABI를 upstream IREE HAL executable packaging으로 교체한다.

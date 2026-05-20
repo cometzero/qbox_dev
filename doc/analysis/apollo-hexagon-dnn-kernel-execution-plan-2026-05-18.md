@@ -215,6 +215,13 @@ MNIST ONNX compile artifact와 Apollo APKO payload semantics를 같은 determini
 graph contract로 묶지만, full APKO code/payload interpreter와 upstream IREE HAL
 executable backend packaging은 별도 남은 작업이다.
 
+2026-05-21 리뷰 반영으로 APKO `CODE` section은 단일 entry marker에서 2-word
+mini program으로 확장했다. 현재 transition instruction stream은
+`MODEL_DISPATCH | model-kind` 뒤에 `APKO_CODE_OP_END`가 반드시 와야 하며, guest
+UMD, Linux command BO validator, QBox DMA model이 모두 이 terminator를 확인한다.
+이것은 아직 실제 Hexagon instruction blob 실행은 아니지만, APKO `CODE` section을
+검증 가능한 instruction stream으로 소비하기 시작한 단계다.
+
 ## Apollo IREE HAL UMD 재구성
 
 현재 guest shim은 `iree-run-module` 일부 option을 직접 parsing하고 fixed ioctl을
@@ -1076,9 +1083,10 @@ review를 별도로 수행해야 한다.
   switch하지 않고 `CODE` entry instruction의 opcode/model field를 decode한다. 현재
   instruction은 아직 VADD/CNN/MNIST built-in model-kernel selector를 호출하지만,
   실행 의미가 APKO code section에서 온다는 계약을 명시적으로 만든다.
-- guest HAL과 smoke marker는 `code_words`, `code_entry`, QBox `command load code`
-  marker를 출력/검증하고, QBox component test는 payload opcode와 code entry가 다른
-  경우를 malformed `LOAD_CODE`로 확인한다.
+- guest HAL과 smoke marker는 `code_words`, `code_entry`, `code_end`, QBox
+  `command load code` marker를 출력/검증하고, QBox component test는 payload opcode와
+  code entry가 다른 경우와 `APKO_CODE_OP_END`가 없는 경우를 malformed `LOAD_CODE`로
+  확인한다.
 
 이 구조가 요청한 `iree compile -> VMFB -> IREE runtime -> Apollo Hexagon UMD
 -> Apollo Hexagon driver -> Apollo Hexagon hardware` 경로와 가장 잘 맞는다.

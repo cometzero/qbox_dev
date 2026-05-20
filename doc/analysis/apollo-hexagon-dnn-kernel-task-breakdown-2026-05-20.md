@@ -528,9 +528,13 @@ Cross-lane contract gates:
   `LOAD_EXECUTABLE`은 executable slot과 tensor geometry만 로드하고,
   APKO payload opcode는 APKO 파일의 `PAYL` descriptor를 UMD가 읽어
   `LOAD_PAYLOAD` packet으로 명시적으로 전달한다. APKO code entry instruction은
-  `CODE` descriptor를 UMD가 읽어 `LOAD_CODE` packet으로 별도 전달한다. QBox는
-  `LOAD_PAYLOAD` 또는 `LOAD_CODE`가 없는 executable-slot dispatch를 malformed packet으로
-  처리해야 한다.
+  `CODE` descriptor를 UMD가 읽어 `LOAD_CODE` packet으로 별도 전달한다.
+  2026-05-21 추가 리뷰 반영 후 `CODE` payload는 1-word marker가 아니라
+  `MODEL_DISPATCH | model-kind`, `APKO_CODE_OP_END`의 2-word mini program으로
+  검증한다. Linux validator, guest UMD, QBox DMA model은 entry와 end instruction이
+  모두 맞는 경우에만 executable-slot dispatch를 허용한다. QBox는 `LOAD_PAYLOAD`,
+  `LOAD_CODE`, 또는 `APKO_CODE_OP_END`가 없는 executable-slot dispatch를 malformed
+  packet으로 처리해야 한다.
 - worker-2는 fixed compatibility path와 generic v2 path를 반드시 별도 PASS/FAIL로
   기록한다. `SUBMIT_CNN`/`SUBMIT_VADD` marker가 generic smoke 성공 근거로 섞이면
   regression으로 본다.
