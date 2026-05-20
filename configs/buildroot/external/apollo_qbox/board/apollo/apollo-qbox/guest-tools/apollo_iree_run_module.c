@@ -168,6 +168,7 @@ int main(int argc, char **argv)
 			       opts.plugin_path);
 		if (ret < 0 || (size_t)ret >= sizeof(exe.plugin_path)) {
 			fprintf(stderr, "Apollo HAL plugin path is too long\n");
+			apollo_hexagon_unload_executable(&exe);
 			return 1;
 		}
 	}
@@ -175,6 +176,7 @@ int main(int argc, char **argv)
 	    strcmp(opts.function, exe.entry_point) != 0) {
 		fprintf(stderr, "Apollo HAL device %s rejects executable entry %s\n",
 			opts.device_name, opts.function);
+		apollo_hexagon_unload_executable(&exe);
 		return 1;
 	}
 
@@ -183,6 +185,7 @@ int main(int argc, char **argv)
 						 sizeof(error));
 	if (!device) {
 		fprintf(stderr, "%s\n", error);
+		apollo_hexagon_unload_executable(&exe);
 		return 1;
 	}
 
@@ -191,6 +194,7 @@ int main(int argc, char **argv)
 						 sizeof(error));
 	if (ret) {
 		fprintf(stderr, "%s: %s\n", error, strerror(-ret));
+		apollo_hexagon_unload_executable(&exe);
 		return 1;
 	}
 
@@ -203,14 +207,25 @@ int main(int argc, char **argv)
 	       device->plugin_path, device->ops->name, device->ops->api_version);
 	printf("IREE Apollo Hexagon HAL: executable=%s entry=%s bytes=%zu\n",
 	       exe.module_path, exe.entry_point, exe.module_size);
+	if (exe.executable_format == APOLLO_HEXAGON_EXEC_FORMAT_APKO_V0)
+		printf("IREE Apollo Hexagon HAL: executable_format=apollo-hexagon-apko-v0 apko=%s bytes=%zu\n",
+		       exe.apko_path, exe.apko_size);
+	if (exe.apko_embedded)
+		printf("IREE Apollo Hexagon HAL: executable_source=vmfb-embedded-apko\n");
 	if (exe.compiler_name[0])
 		printf("IREE Apollo Hexagon HAL: compiler bridge=%s artifact=%s bytes=%zu\n",
 		       exe.compiler_name, exe.compiler_artifact_path,
 		       exe.compiler_artifact_size);
 	printf("IREE Apollo Hexagon HAL: executable_plugin compatibility export=%s staged\n",
 	       "iree_hal_executable_plugin_query");
-	printf("IREE Apollo Hexagon HAL: queues=%u command-buffer=fixed fence=async-irq-poll\n",
-	       queue.queue_count);
+	printf("IREE Apollo Hexagon HAL: queues=%u command-buffer=%s fence=async-irq-poll\n",
+	       queue.queue_count,
+	       exe.executable_format == APOLLO_HEXAGON_EXEC_FORMAT_APKO_V0 ?
+	       "generic-submit" : "fixed");
+	printf("IREE Apollo Hexagon HAL: generic_abi_version=%u executable_formats=0x%08x max_command_bytes=%u max_bindings_per_dispatch=%u max_queue_depth=%u fault_record_size=%u\n",
+	       queue.generic_abi_version, queue.supported_executable_formats,
+	       queue.max_command_bytes, queue.max_bindings_per_dispatch,
+	       queue.max_queue_depth, queue.fault_record_size);
 	(void)opts.input;
 
 	if (!opts.skip_stress) {
@@ -223,6 +238,7 @@ int main(int argc, char **argv)
 		if (ret) {
 			fprintf(stderr, "%s: %s\n", error, strerror(-ret));
 			device->ops->queue_close(&queue);
+			apollo_hexagon_unload_executable(&exe);
 			return 1;
 		}
 		printf("IREE Apollo Hexagon HAL: SG DMA stress ok queue=%u bytes=%u segments=%u checksum=0x%08x\n",
@@ -234,6 +250,7 @@ int main(int argc, char **argv)
 
 	if (opts.stress_only) {
 		device->ops->queue_close(&queue);
+		apollo_hexagon_unload_executable(&exe);
 		return 0;
 	}
 
@@ -246,14 +263,31 @@ int main(int argc, char **argv)
 
 		memset(&fence, 0, sizeof(fence));
 		device->ops->queue_select(&queue, 1);
-		ret = device->ops->queue_submit_vadd(&queue, &vadd_cmd, &fence,
-						     error, sizeof(error));
+		if (exe.executable_format ==
+		    APOLLO_HEXAGON_EXEC_FORMAT_APKO_V0) {
+			uint32_t input[APOLLO_HEXAGON_VADD_INPUT_WORDS];
+
+			memcpy(input, vadd_cmd.lhs, sizeof(vadd_cmd.lhs));
+			memcpy(input + APOLLO_HEXAGON_VADD_WORDS, vadd_cmd.rhs,
+			       sizeof(vadd_cmd.rhs));
+			ret = device->ops->queue_submit_apko(
+				&queue, &exe, input, sizeof(input),
+				vadd_cmd.output, sizeof(vadd_cmd.output),
+				&fence, error, sizeof(error));
+			vadd_cmd.status = fence.status;
+		} else {
+			ret = device->ops->queue_submit_vadd(
+				&queue, &vadd_cmd, &fence, error,
+				sizeof(error));
+		}
 		if (ret) {
 			fprintf(stderr, "%s: %s\n", error, strerror(-ret));
 			device->ops->queue_close(&queue);
+			apollo_hexagon_unload_executable(&exe);
 			return 1;
 		}
 		device->ops->queue_close(&queue);
+		apollo_hexagon_unload_executable(&exe);
 
 		printf("IREE Apollo Hexagon HAL: command buffer submitted\n");
 		printf("IREE Apollo Hexagon HAL: offload complete queue=%u status=0x%08x\n",
@@ -276,14 +310,23 @@ int main(int argc, char **argv)
 
 	memset(&fence, 0, sizeof(fence));
 	device->ops->queue_select(&queue, 1);
-	ret = device->ops->queue_submit_cnn(&queue, &cmd, &fence, error,
-					      sizeof(error));
+	if (exe.executable_format == APOLLO_HEXAGON_EXEC_FORMAT_APKO_V0) {
+		ret = device->ops->queue_submit_apko(
+			&queue, &exe, cmd.input, sizeof(cmd.input), cmd.output,
+			sizeof(cmd.output), &fence, error, sizeof(error));
+		cmd.status = fence.status;
+	} else {
+		ret = device->ops->queue_submit_cnn(&queue, &cmd, &fence, error,
+						    sizeof(error));
+	}
 	if (ret) {
 		fprintf(stderr, "%s: %s\n", error, strerror(-ret));
 		device->ops->queue_close(&queue);
+		apollo_hexagon_unload_executable(&exe);
 		return 1;
 	}
 	device->ops->queue_close(&queue);
+	apollo_hexagon_unload_executable(&exe);
 
 	printf("IREE Apollo Hexagon HAL: command buffer submitted\n");
 	printf("IREE Apollo Hexagon HAL: offload complete queue=%u status=0x%08x\n",

@@ -13,6 +13,7 @@ static const struct apollo_iree_hexagon_plugin_v1 apollo_plugin = {
 	.queue_select = apollo_hexagon_queue_select,
 	.queue_submit_cnn = apollo_hexagon_queue_submit_cnn,
 	.queue_submit_vadd = apollo_hexagon_queue_submit_vadd,
+	.queue_submit_apko = apollo_hexagon_queue_submit_apko,
 	.queue_submit_dma_stress = apollo_hexagon_queue_submit_dma_stress,
 };
 

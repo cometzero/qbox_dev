@@ -63,6 +63,17 @@ static int registry_queue_submit_vadd(struct apollo_hexagon_queue *queue,
 					       error_len);
 }
 
+static int registry_queue_submit_apko(
+	struct apollo_hexagon_queue *queue,
+	const struct apollo_hexagon_executable *exe, const void *input,
+	size_t input_bytes, void *output, size_t output_bytes,
+	struct apollo_hexagon_fence *fence, char *error, size_t error_len)
+{
+	return apollo_hexagon_queue_submit_apko(queue, exe, input, input_bytes,
+					       output, output_bytes, fence,
+					       error, error_len);
+}
+
 static const struct apollo_iree_hexagon_plugin_v1 apollo_registry_ops = {
 	.api_version = APOLLO_IREE_HEXAGON_PLUGIN_API_VERSION,
 	.name = "apollo-hexagon-hal-registry",
@@ -72,6 +83,7 @@ static const struct apollo_iree_hexagon_plugin_v1 apollo_registry_ops = {
 	.queue_select = registry_queue_select,
 	.queue_submit_cnn = registry_queue_submit_cnn,
 	.queue_submit_vadd = registry_queue_submit_vadd,
+	.queue_submit_apko = registry_queue_submit_apko,
 	.queue_submit_dma_stress = registry_queue_submit_dma_stress,
 };
 
@@ -135,6 +147,7 @@ static int apollo_iree_hal_registry_load_plugin(const char *plugin_path,
 	if (!ops || ops->api_version != APOLLO_IREE_HEXAGON_PLUGIN_API_VERSION ||
 	    !ops->queue_open || !ops->queue_close || !ops->queue_select ||
 	    !ops->queue_submit_cnn || !ops->queue_submit_vadd ||
+	    !ops->queue_submit_apko ||
 	    !ops->queue_submit_dma_stress) {
 		set_error(error, error_len,
 			  "Apollo HAL plugin has incompatible ABI", NULL);

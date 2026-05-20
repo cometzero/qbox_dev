@@ -60,6 +60,17 @@ static int direct_queue_submit_vadd(struct apollo_hexagon_queue *queue,
 						error_len);
 }
 
+static int direct_queue_submit_apko(
+	struct apollo_hexagon_queue *queue,
+	const struct apollo_hexagon_executable *exe, const void *input,
+	size_t input_bytes, void *output, size_t output_bytes,
+	struct apollo_hexagon_fence *fence, char *error, size_t error_len)
+{
+	return apollo_hexagon_queue_submit_apko(queue, exe, input, input_bytes,
+					       output, output_bytes, fence,
+					       error, error_len);
+}
+
 static int direct_queue_submit_dma_stress(struct apollo_hexagon_queue *queue,
 					  uint32_t bytes, uint32_t seed,
 					  uint32_t *checksum,
@@ -80,6 +91,7 @@ static const struct apollo_iree_hexagon_plugin_v1 direct_ops = {
 	.queue_select = direct_queue_select,
 	.queue_submit_cnn = direct_queue_submit_cnn,
 	.queue_submit_vadd = direct_queue_submit_vadd,
+	.queue_submit_apko = direct_queue_submit_apko,
 	.queue_submit_dma_stress = direct_queue_submit_dma_stress,
 };
 
@@ -110,6 +122,7 @@ static int load_hal_plugin(const char *path, struct hal_binding *binding,
 	binding->ops = query(APOLLO_IREE_HEXAGON_PLUGIN_API_VERSION);
 	if (!binding->ops || !binding->ops->queue_open ||
 	    !binding->ops->queue_submit_cnn || !binding->ops->queue_submit_vadd ||
+	    !binding->ops->queue_submit_apko ||
 	    !binding->ops->queue_submit_dma_stress) {
 		snprintf(error, error_len, "HAL plugin has incompatible ABI");
 		dlclose(binding->dl_handle);
@@ -201,6 +214,7 @@ int main(int argc, char **argv)
 	ret = load_hal_plugin(plugin, &binding, error, sizeof(error));
 	if (ret) {
 		fprintf(stderr, "%s\n", error);
+		apollo_hexagon_unload_executable(&exe);
 		return 1;
 	}
 
@@ -208,6 +222,7 @@ int main(int argc, char **argv)
 	if (ret) {
 		fprintf(stderr, "%s: %s\n", error, strerror(-ret));
 		unload_hal_plugin(&binding);
+		apollo_hexagon_unload_executable(&exe);
 		return 1;
 	}
 
@@ -216,6 +231,11 @@ int main(int argc, char **argv)
 	       queue.device);
 	printf("IREE Apollo Hexagon HAL: executable=%s entry=%s bytes=%zu\n",
 	       exe.module_path, exe.entry_point, exe.module_size);
+	if (exe.executable_format == APOLLO_HEXAGON_EXEC_FORMAT_APKO_V0)
+		printf("IREE Apollo Hexagon HAL: executable_format=apollo-hexagon-apko-v0 apko=%s bytes=%zu\n",
+		       exe.apko_path, exe.apko_size);
+	if (exe.apko_embedded)
+		printf("IREE Apollo Hexagon HAL: executable_source=vmfb-embedded-apko\n");
 	if (exe.compiler_name[0])
 		printf("IREE Apollo Hexagon HAL: compiler bridge=%s artifact=%s bytes=%zu\n",
 		       exe.compiler_name, exe.compiler_artifact_path,
@@ -226,8 +246,14 @@ int main(int argc, char **argv)
 	if (binding.dynamic)
 		printf("IREE Apollo Hexagon HAL: upstream executable_plugin export=%s available\n",
 		       "iree_hal_executable_plugin_query");
-	printf("IREE Apollo Hexagon HAL: queues=%u command-buffer=fixed fence=async-irq-poll\n",
-	       queue.queue_count);
+	printf("IREE Apollo Hexagon HAL: queues=%u command-buffer=%s fence=async-irq-poll\n",
+	       queue.queue_count,
+	       exe.executable_format == APOLLO_HEXAGON_EXEC_FORMAT_APKO_V0 ?
+	       "generic-submit" : "fixed");
+	printf("IREE Apollo Hexagon HAL: generic_abi_version=%u executable_formats=0x%08x max_command_bytes=%u max_bindings_per_dispatch=%u max_queue_depth=%u fault_record_size=%u\n",
+	       queue.generic_abi_version, queue.supported_executable_formats,
+	       queue.max_command_bytes, queue.max_bindings_per_dispatch,
+	       queue.max_queue_depth, queue.fault_record_size);
 
 	if (!skip_stress) {
 		memset(&fence, 0, sizeof(fence));
@@ -240,6 +266,7 @@ int main(int argc, char **argv)
 			fprintf(stderr, "%s: %s\n", error, strerror(-ret));
 			binding.ops->queue_close(&queue);
 			unload_hal_plugin(&binding);
+			apollo_hexagon_unload_executable(&exe);
 			return 1;
 		}
 		printf("IREE Apollo Hexagon HAL: SG DMA stress ok queue=%u bytes=%u segments=%u checksum=0x%08x\n",
@@ -253,6 +280,7 @@ int main(int argc, char **argv)
 	if (stress_only) {
 		binding.ops->queue_close(&queue);
 		unload_hal_plugin(&binding);
+		apollo_hexagon_unload_executable(&exe);
 		return 0;
 	}
 
@@ -265,16 +293,33 @@ int main(int argc, char **argv)
 
 		memset(&fence, 0, sizeof(fence));
 		binding.ops->queue_select(&queue, 1);
-		ret = binding.ops->queue_submit_vadd(&queue, &vadd_cmd, &fence,
-						     error, sizeof(error));
+		if (exe.executable_format ==
+		    APOLLO_HEXAGON_EXEC_FORMAT_APKO_V0) {
+			uint32_t input[APOLLO_HEXAGON_VADD_INPUT_WORDS];
+
+			memcpy(input, vadd_cmd.lhs, sizeof(vadd_cmd.lhs));
+			memcpy(input + APOLLO_HEXAGON_VADD_WORDS, vadd_cmd.rhs,
+			       sizeof(vadd_cmd.rhs));
+			ret = binding.ops->queue_submit_apko(
+				&queue, &exe, input, sizeof(input),
+				vadd_cmd.output, sizeof(vadd_cmd.output),
+				&fence, error, sizeof(error));
+			vadd_cmd.status = fence.status;
+		} else {
+			ret = binding.ops->queue_submit_vadd(
+				&queue, &vadd_cmd, &fence, error,
+				sizeof(error));
+		}
 		if (ret) {
 			fprintf(stderr, "%s: %s\n", error, strerror(-ret));
 			binding.ops->queue_close(&queue);
 			unload_hal_plugin(&binding);
+			apollo_hexagon_unload_executable(&exe);
 			return 1;
 		}
 		binding.ops->queue_close(&queue);
 		unload_hal_plugin(&binding);
+		apollo_hexagon_unload_executable(&exe);
 
 		printf("IREE Apollo Hexagon HAL: command buffer submitted\n");
 		printf("IREE Apollo Hexagon HAL: offload complete queue=%u status=0x%08x\n",
@@ -297,16 +342,25 @@ int main(int argc, char **argv)
 
 	memset(&fence, 0, sizeof(fence));
 	binding.ops->queue_select(&queue, 1);
-	ret = binding.ops->queue_submit_cnn(&queue, &cmd, &fence, error,
-					    sizeof(error));
+	if (exe.executable_format == APOLLO_HEXAGON_EXEC_FORMAT_APKO_V0) {
+		ret = binding.ops->queue_submit_apko(
+			&queue, &exe, cmd.input, sizeof(cmd.input), cmd.output,
+			sizeof(cmd.output), &fence, error, sizeof(error));
+		cmd.status = fence.status;
+	} else {
+		ret = binding.ops->queue_submit_cnn(&queue, &cmd, &fence, error,
+						    sizeof(error));
+	}
 	if (ret) {
 		fprintf(stderr, "%s: %s\n", error, strerror(-ret));
 		binding.ops->queue_close(&queue);
 		unload_hal_plugin(&binding);
+		apollo_hexagon_unload_executable(&exe);
 		return 1;
 	}
 	binding.ops->queue_close(&queue);
 	unload_hal_plugin(&binding);
+	apollo_hexagon_unload_executable(&exe);
 
 	printf("IREE Apollo Hexagon HAL: command buffer submitted\n");
 	printf("IREE Apollo Hexagon HAL: offload complete queue=%u status=0x%08x\n",

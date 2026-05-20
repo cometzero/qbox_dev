@@ -6,8 +6,9 @@
 ## 목적
 
 이 문서는 Apollo/Hexagon/APKO 작업에서 Lane4가 담당할 계획 근거,
-compatibility 메모, 회귀 요구사항, 소유 경계를 기록한다. 범위는 계약
-스크립트, smoke script, 증거 문서, gate 유지보수로 제한한다.
+compatibility 메모, 회귀 요구사항, 소유 경계를 기록한다. 최초 범위는 계약
+스크립트, smoke script, 증거 문서, gate 유지보수였고, 리뷰 반영 후 실제 APKO
+generic submit slice는 driver/UMD lane 변경으로 확장되었다.
 
 ## 현재 계획 근거
 
@@ -21,6 +22,9 @@ compatibility 메모, 회귀 요구사항, 소유 경계를 기록한다. 범위
   - repo contract는 compat fixed-path check와 generic v2 check를 분리해야
     한다.
   - 기존 fixed marker는 전환 기간 동안 compat section에만 남긴다.
+- `/build/qbox_dev/doc/verification/qbox-apollo-hexagon-apko-generic-submit-2026-05-18.md`
+  - 리뷰 반영 후 APKO VADD/CNN guest smoke는 generic submit marker와 결과
+    tensor를 검증한다.
 - `/build/qbox_dev/doc/analysis/apollo-hexagon-dnn-kernel-execution-plan-2026-05-18.md:570-577`
   - driver refactor는 기존 동작을 보존하면서 소유 경계를 만들어야 한다.
 - `/build/qbox_dev/doc/analysis/apollo-hexagon-dnn-kernel-execution-plan-2026-05-18.md:744-816`
@@ -32,7 +36,8 @@ compatibility 메모, 회귀 요구사항, 소유 경계를 기록한다. 범위
 - `/build/qbox_dev/doc/analysis/hexagon-mlir-target-execution-2026-05-18.md:36-55`
   - QBox는 fixed DRM job을 가진 Buildroot Linux guest이며, upstream
     Hexagon-MLIR runtime contract와 다르다.
-  - generic loader ABI가 생기기 전까지 직접 Hexagon-MLIR object 실행은
+  - APKO loader ABI는 repo-local sidecar bridge로 시작되었다.
+  - 직접 Hexagon-MLIR object execution과 VMFB 내부 APKO packaging은 아직
     blocked 상태다.
 - `/build/qbox_dev/doc/analysis/hexagon-mlir-iree-qbox-bridge-plan-2026-05-18.md:8-25`
   - 현재 feasible bridge는 ONNX vector-add를 IREE로 거친 뒤 fixed Apollo
@@ -45,7 +50,8 @@ compatibility 메모, 회귀 요구사항, 소유 경계를 기록한다. 범위
 ## 회귀 요구사항
 
 - refactor 중에도 현재 compat smoke 동작을 유지한다.
-- generic APKO smoke가 안정화되기 전까지 fixed marker를 보존한다.
+- generic APKO smoke가 안정화된 이후에도 fixed marker는 transition compat
+  section으로 보존한다.
 - `doc/verification/`에서 compat evidence와 generic evidence를 분리한다.
 - generic path에는 unsupported op, ABI mismatch, invalid IOVA negative
   coverage를 유지한다.
@@ -60,7 +66,7 @@ Lane4가 소유하는 범위:
 - 한글 evidence/report artifact
 - regression gate 문서
 
-Lane4가 직접 수정하지 않아야 하는 범위:
+원래 Lane4가 직접 수정하지 않아야 하는 범위:
 
 - Linux UAPI와 DRM accel 구현
   - `/build/qbox_dev/sources/linux/include/uapi/drm/apollo_hexagon_accel.h`
@@ -70,6 +76,10 @@ Lane4가 직접 수정하지 않아야 하는 범위:
 - Apollo IREE HAL UMD와 Buildroot integration
   - `/build/qbox_dev/configs/buildroot/external/apollo_qbox/board/apollo/apollo-qbox/guest-tools/*`
   - `/build/qbox_dev/configs/buildroot/external/apollo_qbox/package/iree-runtime/*`
+
+리뷰 반영 구현은 위 범위를 넘어서 실제 APKO generic submit slice까지 연결했다.
+이후 후속 작업에서는 driver/UMD 변경과 Lane4 contract/report 변경을 분리해서
+작업한다.
 
 ## Lane4 실행 지침
 

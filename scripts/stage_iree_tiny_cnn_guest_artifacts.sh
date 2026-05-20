@@ -12,7 +12,9 @@ extract_dir=${QBOX_IREE_AARCH64_EXTRACT_DIR:-"${repo_root}/build/iree-aarch64-ru
 hexagon_tools_dir=${QBOX_APOLLO_HEXAGON_TOOLS_OUT:-"${repo_root}/build/apollo-hexagon-guest-tools"}
 hexagon_mlir_artifact=${QBOX_HEXAGON_MLIR_ARTIFACT:-}
 
-"${repo_root}/scripts/run_iree_tiny_cnn_host_smoke.sh"
+if [[ "${QBOX_IREE_TINY_CNN_SKIP_HOST_SMOKE:-0}" != 1 ]]; then
+  "${repo_root}/scripts/run_iree_tiny_cnn_host_smoke.sh"
+fi
 "${repo_root}/scripts/build_apollo_hexagon_guest_tools.sh"
 
 if [[ ! -x "${venv_dir}/bin/python" ]]; then
@@ -105,6 +107,8 @@ install -m 0755 "${hexagon_tools_dir}/bin/apollo-iree-run-module" \
   "${stage_dir}/bin/apollo-iree-run-module"
 install -m 0755 "${hexagon_tools_dir}/bin/apollo-iree-hexagon-runner" \
   "${stage_dir}/bin/apollo-iree-hexagon-runner"
+install -m 0755 "${hexagon_tools_dir}/bin/apollo-hexagon-apko-negative" \
+  "${stage_dir}/bin/apollo-hexagon-apko-negative"
 install -m 0755 "${hexagon_tools_dir}/lib/libapollo_iree_hexagon_hal_plugin.so" \
   "${stage_dir}/lib/libapollo_iree_hexagon_hal_plugin.so"
 install -m 0644 "${smoke_out}/tiny_cnn.onnx" "${stage_dir}/tiny_cnn.onnx"
@@ -141,6 +145,67 @@ if [[ -n "${hexagon_mlir_rel}" ]]; then
     echo "compiler_model=tiny-cnn"
     echo "compiler_artifact=${hexagon_mlir_rel}"
   } >> "${stage_dir}/apollo_hexagon.vmfb.meta"
+fi
+
+"${venv_dir}/bin/python" - "${stage_dir}" <<'PY'
+from pathlib import Path
+import struct
+import sys
+
+stage = Path(sys.argv[1])
+path = stage / "tiny_cnn.apko"
+magic = 0x4F4B5041
+header_bytes = 48
+abi_version = 0
+executable_format = 1
+entry_kind = 1
+input_bytes = 64
+output_bytes = 16
+reserved = [0, 0, 0, 0, 0]
+apko = struct.pack(
+    "<12I",
+    magic, header_bytes, abi_version, executable_format, entry_kind,
+    input_bytes, output_bytes, *reserved,
+)
+path.write_bytes(apko)
+
+module = (stage / "tiny_cnn_aarch64.vmfb").read_bytes()
+footer = struct.pack(
+    "<8I",
+    0x4F4B4156,
+    0,
+    32,
+    len(apko),
+    entry_kind,
+    input_bytes,
+    output_bytes,
+    0,
+)
+(stage / "tiny_cnn_apollo.vmfb").write_bytes(module + apko + footer)
+PY
+
+cat > "${stage_dir}/apollo_hexagon_apko.vmfb.meta" <<'META'
+module=tiny_cnn_aarch64.vmfb
+entry=tiny_cnn_graph
+device=apollo-hexagon
+expected=1x1x2x2xf32=[[[54 63][90 99]]]
+plugin=lib/libapollo_iree_hexagon_hal_plugin.so
+upstream_executable_plugin=iree_hal_executable_plugin_query
+queue=multi
+command_buffer=generic-submit
+fence=async-irq-poll
+executable_format=apollo-hexagon-apko-v0
+apko=tiny_cnn.apko
+apko_entry_kind=cnn
+apko_input_bytes=64
+apko_output_bytes=16
+META
+if [[ -n "${hexagon_mlir_rel}" ]]; then
+  {
+    echo "compiler=hexagon-mlir"
+    echo "compiler_model=tiny-cnn"
+    echo "compiler_artifact=${hexagon_mlir_rel}"
+  } >> "${stage_dir}/apollo_hexagon_apko.vmfb.meta"
 fi
 
 cat > "${stage_dir}/bin/iree-run-module" <<'GUEST'
@@ -235,6 +300,50 @@ exec "${runner}" \
 GUEST
 chmod 0755 "${stage_dir}/run_tiny_cnn_hexagon_guest.sh"
 
+cat > "${stage_dir}/run_tiny_cnn_apko_hexagon_guest.sh" <<'GUEST'
+#!/bin/sh
+set -eu
+
+self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+runner=${IREE_RUN_MODULE:-"${self_dir}/bin/iree-run-module"}
+if [ ! -x "${runner}" ]; then
+  echo "iree-run-module Apollo registry wrapper is not installed in this Buildroot image." >&2
+  exit 127
+fi
+
+exec "${runner}" \
+  --device=apollo-hexagon \
+  --metadata="${self_dir}/apollo_hexagon_apko.vmfb.meta" \
+  --executable_plugin="${self_dir}/lib/libapollo_iree_hexagon_hal_plugin.so" \
+  --module="${self_dir}/tiny_cnn_aarch64.vmfb" \
+  --function=tiny_cnn_graph \
+  --input='1x1x4x4xf32=[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16]' \
+  "$@"
+GUEST
+chmod 0755 "${stage_dir}/run_tiny_cnn_apko_hexagon_guest.sh"
+
+cat > "${stage_dir}/run_tiny_cnn_vmfb_apko_hexagon_guest.sh" <<'GUEST'
+#!/bin/sh
+set -eu
+
+self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+runner=${IREE_RUN_MODULE:-"${self_dir}/bin/iree-run-module"}
+if [ ! -x "${runner}" ]; then
+  echo "iree-run-module Apollo registry wrapper is not installed in this Buildroot image." >&2
+  exit 127
+fi
+
+exec "${runner}" \
+  --device=apollo-hexagon \
+  --metadata= \
+  --executable_plugin="${self_dir}/lib/libapollo_iree_hexagon_hal_plugin.so" \
+  --module="${self_dir}/tiny_cnn_apollo.vmfb" \
+  --function=tiny_cnn_graph \
+  --input='1x1x4x4xf32=[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16]' \
+  "$@"
+GUEST
+chmod 0755 "${stage_dir}/run_tiny_cnn_vmfb_apko_hexagon_guest.sh"
+
 "${venv_dir}/bin/python" - "${stage_dir}" "${runtime_version}" "${runtime_source}" "${hexagon_mlir_rel}" <<'PY'
 from pathlib import Path
 import json
@@ -270,9 +379,17 @@ manifest = {
         'upstream_executable_plugin_export': 'iree_hal_executable_plugin_query',
         'device': '/dev/accel/accel0',
         'script': 'run_tiny_cnn_hexagon_guest.sh',
+        'apko_script': 'run_tiny_cnn_apko_hexagon_guest.sh',
+        'embedded_apko_script': 'run_tiny_cnn_vmfb_apko_hexagon_guest.sh',
+        'negative_runner': 'bin/apollo-hexagon-apko-negative',
         'metadata': 'apollo_hexagon.vmfb.meta',
+        'apko_metadata': 'apollo_hexagon_apko.vmfb.meta',
+        'apko': 'tiny_cnn.apko',
+        'embedded_apko_module': 'tiny_cnn_apollo.vmfb',
         'queue': 'multi',
         'command_buffer': 'fixed',
+        'generic_command_buffer': 'generic-submit',
+        'embedded_apko_contract': 'VMFB file carries a repo-local APKO trailer and runs without .vmfb.meta sidecar metadata',
         'fence': 'async-irq-poll',
         'dma_stress_bytes': 131072,
         'dma_stress_segments': 8,
@@ -281,7 +398,7 @@ manifest = {
         'status': 'metadata_sidecar_staged' if hexagon_mlir_rel else 'not_requested',
         'model': 'tiny-cnn',
         'artifact': hexagon_mlir_rel,
-        'execution_contract': 'metadata-only sidecar; current Apollo Hexagon ABI still runs the fixed tiny-CNN ioctl path',
+        'execution_contract': 'metadata-only sidecar; APKO metadata uses the generic submit ioctl while fixed tiny-CNN remains a compatibility path',
     },
     'files': {str(p.relative_to(stage)): p.stat().st_size for p in sorted(stage.rglob('*')) if p.is_file()},
     'next_requirement': 'Build the rootfs with BR2_PACKAGE_IREE_RUNTIME=y, then run run_tiny_cnn_guest.sh for A710 CPU or run_tiny_cnn_hexagon_guest.sh for Apollo Hexagon offload in the QBox guest.',

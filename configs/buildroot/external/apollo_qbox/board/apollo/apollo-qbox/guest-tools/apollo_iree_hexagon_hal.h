@@ -16,10 +16,20 @@ struct apollo_hexagon_executable {
 	char plugin_path[256];
 	char compiler_name[64];
 	char compiler_artifact_path[256];
+	char apko_path[256];
 	char entry_point[96];
 	char expected_output[160];
+	const void *apko_data;
 	size_t module_size;
 	size_t compiler_artifact_size;
+	size_t apko_size;
+	size_t apko_data_size;
+	uint32_t executable_format;
+	uint32_t apko_abi_version;
+	uint32_t entry_kind;
+	uint32_t input_bytes;
+	uint32_t output_bytes;
+	uint32_t apko_embedded;
 };
 
 struct apollo_hexagon_command_buffer {
@@ -48,12 +58,21 @@ struct apollo_hexagon_queue {
 	const char *device;
 	uint32_t queue_id;
 	uint32_t queue_count;
+	uint32_t generic_abi_version;
+	uint32_t supported_executable_formats;
+	uint32_t max_command_bytes;
+	uint32_t max_bindings_per_dispatch;
+	uint32_t max_queue_depth;
+	uint32_t fence_model;
+	uint32_t smmu_page_granularity;
+	uint32_t fault_record_size;
 };
 
 int apollo_hexagon_load_executable(const char *metadata_path,
 					   const char *module_override,
 					   struct apollo_hexagon_executable *exe,
 					   char *error, size_t error_len);
+void apollo_hexagon_unload_executable(struct apollo_hexagon_executable *exe);
 int apollo_hexagon_queue_open(struct apollo_hexagon_queue *queue,
 				      const char *device, char *error, size_t error_len);
 void apollo_hexagon_queue_close(struct apollo_hexagon_queue *queue);
@@ -67,6 +86,11 @@ int apollo_hexagon_queue_submit_vadd(struct apollo_hexagon_queue *queue,
 				     struct apollo_hexagon_vadd_command_buffer *cmd,
 				     struct apollo_hexagon_fence *fence,
 				     char *error, size_t error_len);
+int apollo_hexagon_queue_submit_apko(
+	struct apollo_hexagon_queue *queue,
+	const struct apollo_hexagon_executable *exe, const void *input,
+	size_t input_bytes, void *output, size_t output_bytes,
+	struct apollo_hexagon_fence *fence, char *error, size_t error_len);
 int apollo_hexagon_queue_submit_dma_stress(struct apollo_hexagon_queue *queue,
 					   uint32_t bytes, uint32_t seed,
 					   uint32_t *checksum,

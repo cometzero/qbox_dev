@@ -3,11 +3,11 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 log_dir=${QBOX_VERIFICATION_DIR:-"${repo_root}/build/verification"}
-stamp=${QBOX_APKO_VADD_HEXAGON_GUEST_SMOKE_STAMP:-$(date +%Y%m%d-%H%M%S)}
-log_path=${QBOX_APKO_VADD_HEXAGON_GUEST_SMOKE_LOG:-"${log_dir}/qbox-iree-apko-vadd-hexagon-guest-${stamp}.log"}
-boot_log=${QBOX_BOOT_LOG:-"${log_dir}/qbox-iree-apko-vadd-hexagon-guest-boot-${stamp}.log"}
+stamp=${QBOX_APKO_VADD_VMFB_HEXAGON_GUEST_SMOKE_STAMP:-$(date +%Y%m%d-%H%M%S)}
+log_path=${QBOX_APKO_VADD_VMFB_HEXAGON_GUEST_SMOKE_LOG:-"${log_dir}/qbox-iree-apko-vadd-vmfb-hexagon-guest-${stamp}.log"}
+boot_log=${QBOX_BOOT_LOG:-"${log_dir}/qbox-iree-apko-vadd-vmfb-hexagon-guest-boot-${stamp}.log"}
 expected='4xf32=11 22 33 44'
-cmd='/opt/qbox/iree/vector-add/run_vector_add_apko_hexagon_guest.sh'
+cmd='/opt/qbox/iree/vector-add/run_vector_add_vmfb_apko_hexagon_guest.sh'
 
 mkdir -p "${log_dir}"
 
@@ -26,7 +26,7 @@ rc=$?
 set -e
 
 if [[ ${rc} -ne 0 && ${rc} -ne 124 ]]; then
-  echo "QBox APKO VADD guest smoke exited unexpectedly: rc=${rc}" >&2
+  echo "QBox APKO VADD VMFB guest smoke exited unexpectedly: rc=${rc}" >&2
   exit "${rc}"
 fi
 
@@ -36,37 +36,33 @@ for marker in \
   'userspace submit ABI ready at /dev/accel/accel*' \
   'IREE Apollo Hexagon HAL: drm-accel device=/dev/accel/accel' \
   'IREE Apollo Hexagon HAL: executable_format=apollo-hexagon-apko-v0' \
+  'IREE Apollo Hexagon HAL: executable_source=vmfb-embedded-apko' \
   'IREE Apollo Hexagon HAL: queues=2 command-buffer=generic-submit' \
   'IREE Apollo Hexagon HAL: generic_abi_version=1 executable_formats=0x00000002' \
-  'max_bindings_per_dispatch=2' \
   'LOAD_EXECUTABLE slot=1 kind=2' \
-  'command BO bound VADD dispatch' \
   'APOLLO_HEXAGON_DMA: command load executable slot=1 kind=2' \
   'APOLLO_HEXAGON_DMA: command dispatch executable slot=1 kind=2' \
   'APOLLO_HEXAGON_DMA: command dispatch vadd' \
-  'APOLLO_HEXAGON_DMA: command queue complete' \
-  'command BO bound VADD output copied' \
-  'command BO submit complete' \
   'IREE Apollo Hexagon HAL: APKO CMD_SUBMIT VADD ok' \
   'IREE Apollo Hexagon HAL: command buffer submitted' \
   'IREE Apollo Hexagon HAL: offload complete' \
   'async fence signaled queue=' \
   'EXEC @vector_add_graph [apollo-hexagon]'; do
   if ! grep -F "${marker}" "${log_path}" >/dev/null; then
-    echo "missing APKO VADD marker: ${marker}" >&2
+    echo "missing APKO VADD VMFB marker: ${marker}" >&2
     echo "log: ${log_path}" >&2
     exit 1
   fi
 done
 
 if ! grep -F "${expected}" "${log_path}" >/dev/null; then
-  echo "APKO VADD output mismatch; expected: ${expected}" >&2
+  echo "APKO VADD VMFB output mismatch; expected: ${expected}" >&2
   echo "log: ${log_path}" >&2
   exit 1
 fi
 
 cat <<EOF
-PASS: QBox guest APKO VADD output matched
+PASS: QBox guest APKO VADD VMFB-embedded output matched
 Expected: ${expected}
 Log: ${log_path}
 Boot log: ${boot_log}

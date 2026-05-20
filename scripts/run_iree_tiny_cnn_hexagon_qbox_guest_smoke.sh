@@ -63,6 +63,7 @@ for marker in \
   'IREE Apollo Hexagon HAL: dynamically registered C HAL plugin=' \
   'IREE Apollo Hexagon HAL: executable_plugin compatibility export=iree_hal_executable_plugin_query staged' \
   'IREE Apollo Hexagon HAL: queues=2 command-buffer=fixed fence=async-irq-poll' \
+  'IREE Apollo Hexagon HAL: generic_abi_version=1 executable_formats=0x00000002' \
   'IREE Apollo Hexagon HAL: command buffer submitted' \
   'IREE Apollo Hexagon HAL: offload complete' \
   'EXEC @tiny_cnn_graph [apollo-hexagon]'; do

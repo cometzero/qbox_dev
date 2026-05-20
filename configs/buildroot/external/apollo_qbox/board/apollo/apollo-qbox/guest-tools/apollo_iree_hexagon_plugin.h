@@ -7,7 +7,7 @@
 
 #include "apollo_iree_hexagon_hal.h"
 
-#define APOLLO_IREE_HEXAGON_PLUGIN_API_VERSION 1u
+#define APOLLO_IREE_HEXAGON_PLUGIN_API_VERSION 2u
 #define APOLLO_IREE_HEXAGON_PLUGIN_EXPORT_NAME "apollo_iree_hexagon_plugin_query"
 
 struct apollo_iree_hexagon_plugin_v1 {
@@ -27,6 +27,12 @@ struct apollo_iree_hexagon_plugin_v1 {
 				 struct apollo_hexagon_vadd_command_buffer *cmd,
 				 struct apollo_hexagon_fence *fence,
 				 char *error, size_t error_len);
+	int (*queue_submit_apko)(
+		struct apollo_hexagon_queue *queue,
+		const struct apollo_hexagon_executable *exe,
+		const void *input, size_t input_bytes, void *output,
+		size_t output_bytes, struct apollo_hexagon_fence *fence,
+		char *error, size_t error_len);
 	int (*queue_submit_dma_stress)(struct apollo_hexagon_queue *queue,
 				       uint32_t bytes, uint32_t seed,
 				       uint32_t *checksum,

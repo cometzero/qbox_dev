@@ -41,6 +41,7 @@ for marker in \
   'IREE Apollo Hexagon HAL: drm-accel device=/dev/accel/accel' \
   'IREE Apollo Hexagon HAL: upstream-style HAL registry device=apollo-hexagon' \
   'IREE Apollo Hexagon HAL: dynamically registered C HAL plugin=' \
+  'IREE Apollo Hexagon HAL: generic_abi_version=1 executable_formats=0x00000002' \
   'IREE Apollo Hexagon HAL: command buffer submitted' \
   'IREE Apollo Hexagon HAL: offload complete' \
   'accelerator vector add ok' \

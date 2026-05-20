@@ -8,8 +8,10 @@ out_dir=${QBOX_APOLLO_HEXAGON_TOOLS_OUT:-"${repo_root}/build/apollo-hexagon-gues
 src_dir="${repo_root}/configs/buildroot/external/apollo_qbox/board/apollo/apollo-qbox/guest-tools"
 runner="${out_dir}/bin/apollo-iree-hexagon-runner"
 registry_runner="${out_dir}/bin/apollo-iree-run-module"
+apko_negative="${out_dir}/bin/apollo-hexagon-apko-negative"
 plugin="${out_dir}/lib/libapollo_iree_hexagon_hal_plugin.so"
 host_registry_runner="${out_dir}/host-bin/apollo-iree-run-module"
+host_apko_negative="${out_dir}/host-bin/apollo-hexagon-apko-negative"
 
 if [[ ! -x "${toolchain_prefix}gcc" ]]; then
   echo "Buildroot cross compiler missing: ${toolchain_prefix}gcc" >&2
@@ -46,6 +48,15 @@ mkdir -p "${out_dir}/bin" "${out_dir}/lib" "${out_dir}/host-bin"
   -Wall \
   -Wextra \
   -Werror \
+  -I"${src_dir}" \
+  "${src_dir}/apollo_hexagon_apko_negative.c" \
+  -o "${apko_negative}"
+
+"${toolchain_prefix}gcc" \
+  -Os \
+  -Wall \
+  -Wextra \
+  -Werror \
   -fPIC \
   -shared \
   -I"${src_dir}" \
@@ -65,6 +76,15 @@ gcc \
   -ldl \
   -o "${host_registry_runner}"
 
+gcc \
+  -Os \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -I"${src_dir}" \
+  "${src_dir}/apollo_hexagon_apko_negative.c" \
+  -o "${host_apko_negative}"
+
 if [[ ! -s "${runner}" ]]; then
   echo "failed to build Apollo Hexagon guest runner: ${runner}" >&2
   exit 1
@@ -77,16 +97,28 @@ if [[ ! -s "${plugin}" ]]; then
   echo "failed to build Apollo Hexagon HAL plugin: ${plugin}" >&2
   exit 1
 fi
+if [[ ! -s "${apko_negative}" ]]; then
+  echo "failed to build Apollo Hexagon APKO negative runner: ${apko_negative}" >&2
+  exit 1
+fi
 if [[ ! -s "${host_registry_runner}" ]]; then
   echo "failed to build host Apollo Hexagon HAL registry runner: ${host_registry_runner}" >&2
+  exit 1
+fi
+if [[ ! -s "${host_apko_negative}" ]]; then
+  echo "failed to build host Apollo Hexagon APKO negative runner: ${host_apko_negative}" >&2
   exit 1
 fi
 
 file "${runner}"
 file "${registry_runner}"
+file "${apko_negative}"
 file "${plugin}"
 file "${host_registry_runner}"
+file "${host_apko_negative}"
 echo "Apollo Hexagon guest runner: ${runner}"
 echo "Apollo Hexagon HAL registry runner: ${registry_runner}"
+echo "Apollo Hexagon APKO negative runner: ${apko_negative}"
 echo "Apollo Hexagon HAL plugin: ${plugin}"
 echo "Host Apollo Hexagon HAL registry runner: ${host_registry_runner}"
+echo "Host Apollo Hexagon APKO negative runner: ${host_apko_negative}"

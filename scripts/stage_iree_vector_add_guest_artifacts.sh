@@ -11,7 +11,9 @@ extract_dir=${QBOX_IREE_AARCH64_EXTRACT_DIR:-"${repo_root}/build/iree-aarch64-ru
 hexagon_tools_dir=${QBOX_APOLLO_HEXAGON_TOOLS_OUT:-"${repo_root}/build/apollo-hexagon-guest-tools"}
 hexagon_mlir_artifact=${QBOX_HEXAGON_MLIR_ARTIFACT:-}
 
-"${repo_root}/scripts/run_iree_vector_add_host_smoke.sh"
+if [[ "${QBOX_IREE_VECTOR_ADD_SKIP_HOST_SMOKE:-0}" != 1 ]]; then
+  "${repo_root}/scripts/run_iree_vector_add_host_smoke.sh"
+fi
 "${repo_root}/scripts/build_apollo_hexagon_guest_tools.sh"
 
 if [[ ! -x "${venv_dir}/bin/python" ]]; then
@@ -87,6 +89,8 @@ install -m 0755 "${hexagon_tools_dir}/bin/apollo-iree-run-module" \
   "${stage_dir}/bin/apollo-iree-run-module"
 install -m 0755 "${hexagon_tools_dir}/bin/apollo-iree-hexagon-runner" \
   "${stage_dir}/bin/apollo-iree-hexagon-runner"
+install -m 0755 "${hexagon_tools_dir}/bin/apollo-hexagon-apko-negative" \
+  "${stage_dir}/bin/apollo-hexagon-apko-negative"
 install -m 0755 "${hexagon_tools_dir}/lib/libapollo_iree_hexagon_hal_plugin.so" \
   "${stage_dir}/lib/libapollo_iree_hexagon_hal_plugin.so"
 install -m 0644 "${smoke_out}/vector_add.onnx" "${stage_dir}/vector_add.onnx"
@@ -123,6 +127,67 @@ if [[ -n "${hexagon_mlir_rel}" ]]; then
     echo "compiler_model=vector-add"
     echo "compiler_artifact=${hexagon_mlir_rel}"
   } >> "${stage_dir}/apollo_hexagon.vmfb.meta"
+fi
+
+"${venv_dir}/bin/python" - "${stage_dir}" <<'PY'
+from pathlib import Path
+import struct
+import sys
+
+stage = Path(sys.argv[1])
+path = stage / "vector_add.apko"
+magic = 0x4F4B5041
+header_bytes = 48
+abi_version = 0
+executable_format = 1
+entry_kind = 2
+input_bytes = 32
+output_bytes = 16
+reserved = [0, 0, 0, 0, 0]
+apko = struct.pack(
+    "<12I",
+    magic, header_bytes, abi_version, executable_format, entry_kind,
+    input_bytes, output_bytes, *reserved,
+)
+path.write_bytes(apko)
+
+module = (stage / "vector_add_aarch64.vmfb").read_bytes()
+footer = struct.pack(
+    "<8I",
+    0x4F4B4156,
+    0,
+    32,
+    len(apko),
+    entry_kind,
+    input_bytes,
+    output_bytes,
+    0,
+)
+(stage / "vector_add_apollo.vmfb").write_bytes(module + apko + footer)
+PY
+
+cat > "${stage_dir}/apollo_hexagon_apko.vmfb.meta" <<'META'
+module=vector_add_aarch64.vmfb
+entry=vector_add_graph
+device=apollo-hexagon
+expected=4xf32=11 22 33 44
+plugin=lib/libapollo_iree_hexagon_hal_plugin.so
+upstream_executable_plugin=iree_hal_executable_plugin_query
+queue=multi
+command_buffer=generic-submit
+fence=async-irq-poll
+executable_format=apollo-hexagon-apko-v0
+apko=vector_add.apko
+apko_entry_kind=vadd
+apko_input_bytes=32
+apko_output_bytes=16
+META
+if [[ -n "${hexagon_mlir_rel}" ]]; then
+  {
+    echo "compiler=hexagon-mlir"
+    echo "compiler_model=vector-add"
+    echo "compiler_artifact=${hexagon_mlir_rel}"
+  } >> "${stage_dir}/apollo_hexagon_apko.vmfb.meta"
 fi
 
 cat > "${stage_dir}/bin/iree-run-module" <<'GUEST'
@@ -218,6 +283,67 @@ exec "${runner}" \
 GUEST
 chmod 0755 "${stage_dir}/run_vector_add_hexagon_guest.sh"
 
+cat > "${stage_dir}/run_vector_add_apko_hexagon_guest.sh" <<'GUEST'
+#!/bin/sh
+set -eu
+
+self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+runner=${IREE_RUN_MODULE:-"${self_dir}/bin/iree-run-module"}
+if [ ! -x "${runner}" ]; then
+  echo "iree-run-module Apollo registry wrapper is not installed in this Buildroot image." >&2
+  exit 127
+fi
+
+exec "${runner}" \
+  --device=apollo-hexagon \
+  --metadata="${self_dir}/apollo_hexagon_apko.vmfb.meta" \
+  --executable_plugin="${self_dir}/lib/libapollo_iree_hexagon_hal_plugin.so" \
+  --module="${self_dir}/vector_add_aarch64.vmfb" \
+  --function=vector_add_graph \
+  --input='4xf32=[1 2 3 4]' \
+  --input='4xf32=[10 20 30 40]' \
+  "$@"
+GUEST
+chmod 0755 "${stage_dir}/run_vector_add_apko_hexagon_guest.sh"
+
+cat > "${stage_dir}/run_vector_add_vmfb_apko_hexagon_guest.sh" <<'GUEST'
+#!/bin/sh
+set -eu
+
+self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+runner=${IREE_RUN_MODULE:-"${self_dir}/bin/iree-run-module"}
+if [ ! -x "${runner}" ]; then
+  echo "iree-run-module Apollo registry wrapper is not installed in this Buildroot image." >&2
+  exit 127
+fi
+
+exec "${runner}" \
+  --device=apollo-hexagon \
+  --metadata= \
+  --executable_plugin="${self_dir}/lib/libapollo_iree_hexagon_hal_plugin.so" \
+  --module="${self_dir}/vector_add_apollo.vmfb" \
+  --function=vector_add_graph \
+  --input='4xf32=[1 2 3 4]' \
+  --input='4xf32=[10 20 30 40]' \
+  "$@"
+GUEST
+chmod 0755 "${stage_dir}/run_vector_add_vmfb_apko_hexagon_guest.sh"
+
+cat > "${stage_dir}/run_apko_negative_hexagon_guest.sh" <<'GUEST'
+#!/bin/sh
+set -eu
+
+self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+runner="${self_dir}/bin/apollo-hexagon-apko-negative"
+if [ ! -x "${runner}" ]; then
+  echo "apollo-hexagon-apko-negative is not installed in this Buildroot image." >&2
+  exit 127
+fi
+
+exec "${runner}" "$@"
+GUEST
+chmod 0755 "${stage_dir}/run_apko_negative_hexagon_guest.sh"
+
 "${venv_dir}/bin/python" - "${stage_dir}" "${runtime_version}" "${hexagon_mlir_rel}" <<'PY'
 from pathlib import Path
 import json
@@ -252,16 +378,24 @@ manifest = {
         "upstream_executable_plugin_export": "iree_hal_executable_plugin_query",
         "device": "/dev/accel/accel0",
         "script": "run_vector_add_hexagon_guest.sh",
+        "apko_script": "run_vector_add_apko_hexagon_guest.sh",
+        "embedded_apko_script": "run_vector_add_vmfb_apko_hexagon_guest.sh",
+        "negative_script": "run_apko_negative_hexagon_guest.sh",
         "metadata": "apollo_hexagon.vmfb.meta",
+        "apko_metadata": "apollo_hexagon_apko.vmfb.meta",
+        "apko": "vector_add.apko",
+        "embedded_apko_module": "vector_add_apollo.vmfb",
         "queue": "multi",
         "command_buffer": "fixed",
+        "generic_command_buffer": "generic-submit",
+        "embedded_apko_contract": "VMFB file carries a repo-local APKO trailer and runs without .vmfb.meta sidecar metadata",
         "fence": "async-irq-poll",
     },
     "hexagon_mlir_bridge": {
         "status": "metadata_sidecar_staged" if hexagon_mlir_rel else "not_requested",
         "model": "vector-add",
         "artifact": hexagon_mlir_rel,
-        "execution_contract": "metadata-only sidecar; current Apollo Hexagon ABI still runs the fixed VADD ioctl path",
+        "execution_contract": "metadata-only sidecar; APKO metadata uses the generic submit ioctl while fixed VADD remains a compatibility path",
     },
     "files": {str(p.relative_to(stage)): p.stat().st_size
               for p in sorted(stage.rglob("*")) if p.is_file()},

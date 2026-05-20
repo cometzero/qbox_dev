@@ -198,6 +198,14 @@ executable handle을 만든 뒤 export ordinal로 dispatch한다.
 `.vmfb.meta`는 staging/provenance artifact로만 유지한다. device ABI로 사용하지
 않는다.
 
+2026-05-20 추가 진행으로 sidecar metadata 의존성을 줄이는 transition path를
+추가했다. staging script는 `vector_add_apollo.vmfb`와 `tiny_cnn_apollo.vmfb` 뒤에
+repo-local APKO trailer를 붙이고, guest HAL loader는 metadata path가 비어 있을 때
+VMFB footer를 찾아 APKO v0 payload를 추출한다. 이 경로는
+`executable_source=vmfb-embedded-apko` marker로 구분한다. 단, 이것은 아직 upstream
+IREE compiler가 HAL executable section에 APKO를 packaging했다는 뜻이 아니며,
+그 target backend packaging은 별도 남은 작업이다.
+
 ## Apollo IREE HAL UMD 재구성
 
 현재 guest shim은 `iree-run-module` 일부 option을 직접 parsing하고 fixed ioctl을
@@ -275,15 +283,70 @@ sources/linux/drivers/accel/apollo_hexagon/
 `apollo-hexagon.c` 한 파일에 fixed model logic, DMA setup, ioctl dispatch,
 fence handling을 모두 넣는 구조를 끝내는 것이다.
 
-driver split은 source file 추가만으로 끝나지 않는다. 현재
-`sources/linux/drivers/accel/apollo_hexagon/Makefile`은
-`apollo-hexagon-drm-y := apollo-hexagon.o` 단일 object 중심이고, `Kconfig` help도
-repo-local CNN/VADD/DMA stress ABI를 설명한다. 따라서 1단계 refactor에는
-다음을 반드시 포함한다.
+2026-05-19 리뷰 반영으로 1차 split은 완료됐다. 현재 source layout은
+`apollo-hexagon.c`가 DRM core/probe/ioctl table, `apollo-hexagon-context.c`가
+per-file generic context handle, `apollo-hexagon-bo.c`가 GEM SHMEM buffer object
+생성/삭제, `apollo-hexagon-exec.c`가 APKO executable handle/generic
+submit/`GET_FAULT`, `apollo-hexagon-compat.c`가 fixed CNN/VADD/DMA stress
+compatibility submit을 담당한다. 이 단계는 behavior-preserving 분리와
+context/BO foundation이며, 아래 v2 구조 중 IOMMU binding, command ring, wait,
+fence, fault module 분리는 다음 구현 단계로 남아 있다.
 
-- `Makefile`을 새 object list로 갱신한다.
-- `Kconfig` help를 fixed smoke ABI 중심 설명에서 generic executable/dispatch
-  driver 설명으로 바꾼다.
+같은 날 다음 foundation slice로 `DRM_APOLLO_HEXAGON_QUERY_CAPS`도 append-only로
+추가했다. 이 ioctl은 `generic_abi_version`, supported executable format bitmap,
+queue depth/count, fence model, SMMU page granularity, fault record size를
+userspace에 노출한다. 2026-05-20 APKO VADD CMDQ 연결 이후
+`max_command_bytes`는 현재 지원하는 1개 32-byte `DISPATCH/VADD` packet 크기를
+보고한다. 추가 진행으로 VADD `CMD_SUBMIT` path가 input/output BO binding 2개를
+소비하는 transitional copy shim을 갖게 되어 `max_bindings_per_dispatch=2`를
+보고한다. 이는 true hardware BO page mapping 완료를 뜻하지 않는다.
+
+추가 리뷰 반영으로 `DRM_IOCTL_APOLLO_HEXAGON_CONTEXT_CREATE`와
+`DRM_IOCTL_APOLLO_HEXAGON_CONTEXT_DESTROY`도 append-only로 추가했다. 현재 context는
+per-file xarray handle lifetime, ABI version validation, queue/fence capability
+return, stale-handle rejection을 제공하는 foundation이다. 아직 address space,
+hardware BO mapping, command queue ownership까지 context에 연결하지는 않는다.
+
+2026-05-20 리뷰 반영으로 `DRM_IOCTL_APOLLO_HEXAGON_BO_CREATE`와
+`DRM_IOCTL_APOLLO_HEXAGON_BO_DESTROY`도 append-only로 추가했다. 현재 BO는 DRM GEM
+SHMEM helper를 이용해 per-file GEM handle과 `mmap_offset`을 반환하고,
+`drm_gem_handle_delete()`로 lifetime을 종료하는 foundation이다. 아직 Apollo TBU
+hardware IOVA mapping, per-context address-space ownership, dma-buf import/export는
+남아 있다. 다만 VADD command BO path는 staged IOVA를 binding table에서 찾아
+input BO를 shared SRAM으로 복사하고 output BO로 결과를 되돌리는 transitional
+shim으로 먼저 연결했다.
+추가 리뷰 반영으로 이 `CMD_SUBMIT` VADD shim은 file-level `afile->lock`을 잡은
+채 QBox CMDQ completion을 기다리지 않는다. Binding table lookup과 input snapshot은
+lock 안에서 끝내고, output BO는 GEM object ref를 잡아 lock 밖의 hardware wait와
+copy-back 동안 lifetime을 보장한다.
+
+같은 날 추가 리뷰 반영으로 `DRM_IOCTL_APOLLO_HEXAGON_BO_BIND`와
+`DRM_IOCTL_APOLLO_HEXAGON_BO_UNBIND`도 append-only로 추가했다. 현재 BO binding은
+context-owned xarray에 GEM BO reference, offset, length, usage, staged IOVA를
+저장하는 metadata foundation이다. 아직 GEM page를 Apollo TBU/SMMU hardware
+mapping에 install하지는 않는다. VADD `CMD_SUBMIT` slice에서는 이 metadata를
+transitional copy shim으로 먼저 소비한다.
+추가 리뷰 refresh에서는 BO_UNBIND도 `size/flags`를 검증하게 했고, staged IOVA
+계산에 `check_add_overflow()` guard를 추가했다.
+
+같은 날 추가 진행으로 `DRM_IOCTL_APOLLO_HEXAGON_WAIT`도 append-only로 추가했다.
+현재 WAIT은 synchronous submit 이후 완료된 fence를 확인하고, `status`,
+`result`, `current_fence_seq`를 snapshot으로 돌려주는 foundation이다. future
+fence에 대한 zero-timeout path는 `-ETIMEDOUT`으로 검증한다. 아직 command ring
+기반 async submit과 timeline semaphore ownership이 구현된 것은 아니다.
+
+driver split은 source file 추가만으로 끝나지 않는다. 초기 plan 작성 시점에는
+`sources/linux/drivers/accel/apollo_hexagon/Makefile`이
+`apollo-hexagon-drm-y := apollo-hexagon.o` 단일 object 중심이었다. 현재는
+`apollo-hexagon.o`, `apollo-hexagon-bo.o`, `apollo-hexagon-context.o`,
+`apollo-hexagon-compat.o`, `apollo-hexagon-exec.o`, `apollo-hexagon-fence.o`가
+같은 DRM driver object로
+link된다. 남은 refactor에는 다음을 포함한다.
+
+- v2 IOMMU/submit/fault object list를 `Makefile`에 추가한다.
+- `Kconfig` help는 generic APKO/context/GEM BO ABI와 fixed compat ioctl의
+  transition 관계를 설명하도록 갱신했다. 이후 command ring이 추가되면
+  설명을 다시 좁혀야 한다.
 - 기존 selftest config는 유지하되 generic ABI selftest 또는 smoke config가
   필요하면 별도 option으로 추가한다.
 - `configs/linux` fragment가 driver option을 계속 enable하는지 확인한다.
@@ -298,7 +361,7 @@ repo-local CNN/VADD/DMA stress ABI를 설명한다. 따라서 1단계 refactor�
 DRM_APOLLO_HEXAGON_QUERY_CAPS
 DRM_APOLLO_HEXAGON_CREATE_CONTEXT
 DRM_APOLLO_HEXAGON_DESTROY_CONTEXT
-DRM_APOLLO_HEXAGON_CREATE_BO
+DRM_APOLLO_HEXAGON_CREATE_BO    // 구현 이름은 BO_CREATE
 DRM_APOLLO_HEXAGON_MMAP_BO
 DRM_APOLLO_HEXAGON_IMPORT_BO
 DRM_APOLLO_HEXAGON_CREATE_EXECUTABLE
@@ -500,6 +563,25 @@ FAULT_ADDR_LO/HI
 CAPS
 ```
 
+2026-05-20 리뷰 반영으로 위 register foundation의 QBox component side를 먼저
+추가했고, 이어서 command packet의 최소 실행 subset을 붙였다. 현재
+`CMDQ_DOORBELL`은 선형 non-wrapping queue에서 `NOP`, `COPY`, `BARRIER`,
+`SIGNAL_FENCE`, `LOAD_EXECUTABLE`, `DISPATCH/VADD`를 fetch/decode/execute하고,
+empty queue, unsupported packet, malformed packet, DMA/TLM 실패는 fault register에
+남긴 뒤 기존 async IRQ/fence path로 completion을 만든다. `LOAD_EXECUTABLE`은
+APKO v0 metadata를 QBox-side executable slot에 적재하고, executable-slot
+`DISPATCH`가 그 metadata를 참조해 VADD를 실행한다. 추가 리뷰 반영으로 queue
+geometry 검증 순서를 조정해 out-of-range head/tail이 empty queue로 오분류되지 않게
+했고, command queue 주소 계산에는 base+offset overflow guard를 넣었다. Component
+test도 malformed geometry, COPY DMA fault, LOAD_EXECUTABLE valid/invalid,
+DISPATCH/VADD 성공, DISPATCH/VADD DMA fault 경로를 포함한다. APKO VADD sidecar
+smoke 경로는 Linux driver가 GEM SHMEM command BO에서 2-packet
+`LOAD_EXECUTABLE -> DISPATCH(exec-slot)` command buffer를 fetch해 QBox
+`CMDQ_DOORBELL`을 울리는 path로 연결했다. APKO negative smoke는 malformed
+`LOAD_EXECUTABLE`과 invalid IOVA `COPY` packet을 command BO로 제출해 fault record를
+검증한다. 아직 true APKO code/payload loading, true hardware BO mapping,
+CNN/MNIST CMDQ dispatch는 다음 단계다.
+
 최소 command packet:
 
 ```text
@@ -549,8 +631,8 @@ ordinal을 전달해야 한다.
    check로 분리한다.
 2. 기존 fixed marker는 transition 기간에만 compat section에서 검사한다.
 3. 새 generic section은 다음 marker를 요구한다.
-   - `DRM_APOLLO_HEXAGON_CREATE_EXECUTABLE`
-   - `DRM_APOLLO_HEXAGON_SUBMIT`
+   - `DRM_IOCTL_APOLLO_HEXAGON_EXEC_CREATE`
+   - `DRM_IOCTL_APOLLO_HEXAGON_SUBMIT`
    - `apollo-hexagon-apko-v0`
    - `iree-run-module --device=apollo-hexagon://0`
    - `generic submit ok`
@@ -562,9 +644,10 @@ ordinal을 전달해야 한다.
      `run_iree_vector_add_hexagon_qbox_guest_smoke.sh`
    - generic: `run_iree_apko_vadd_hexagon_qbox_guest_smoke.sh`,
      `run_iree_apko_cnn_hexagon_qbox_guest_smoke.sh`
-   - 2026-05-18 현재 repository에는 위 generic script scaffold가 추가되었고,
-     compat lane은 유지되며 generic APKO ABI/dispatch 부재는 blocked 메시지로
-     명시한다.
+   - 2026-05-18 리뷰 반영 후 repository에는 APKO v0 executable handle,
+     generic submit ioctl, guest HAL APKO loader, APKO VADD/CNN smoke가
+     추가되었다. compat lane은 유지하되 generic APKO smoke는 별도 PASS
+     기준으로 검증한다.
 6. `doc/verification/` report는 fixed compat 통과와 generic v2 통과를 혼동하지
    않도록 따로 기록한다.
 
@@ -602,6 +685,12 @@ accelerator vector add ok
 - query caps에 generic ABI version과 executable format support를 추가한다.
 - fixed ioctl은 `compat` layer로 이동한다.
 - driver core는 inline tensor를 알지 못하게 한다.
+
+2026-05-20 현재 `QUERY_CAPS`, `CONTEXT_CREATE/DESTROY`,
+`BO_CREATE/DESTROY`, `BO_BIND/UNBIND`, `EXEC_CREATE/DESTROY`, `SUBMIT`, `WAIT`,
+`GET_FAULT`, 32-byte command BO `CMD_SUBMIT` foundation, VADD binding-table
+copy shim은 구현되어 있다. 남은 작업은 true hardware BO mapping, executable
+payload dispatch 연결, CNN/MNIST generic CMDQ dispatch다.
 
 필수 검증:
 
@@ -715,11 +804,32 @@ iree-run-module \
   --input=<input>
 ```
 
+2026-05-18 리뷰 반영 구현 상태:
+
+- APKO sidecar metadata를 통해 UMD가 `EXEC_CREATE -> SUBMIT -> EXEC_DESTROY`
+  순서로 driver에 executable handle을 등록하고 generic submit을 호출한다.
+- QBox guest VADD/CNN APKO smoke는 `command-buffer=generic-submit`,
+  `generic submit ok`, `APKO dispatch complete` marker와 결과 tensor를 검증한다.
+- QBox guest APKO negative smoke는 invalid APKO header, wrong command size,
+  wrong queue, invalid user pointer, stale executable handle rejection, empty
+  `GET_FAULT` retrieval, invalid IOVA fault-producing `GET_FAULT` retrieval을
+  검증한다.
+- 2026-05-20 BO foundation 추가 후 APKO negative smoke는 zero-size BO reject,
+  GEM BO create/destroy, stale BO handle reject도 검증한다.
+- 2026-05-20 WAIT foundation 추가 후 APKO negative smoke는 bad WAIT size,
+  zero WAIT fence, bad WAIT queue, completed fence wait, future fence timeout도
+  검증한다.
+- 아직 VMFB 내부 HAL executable data에 APKO를 직접 packaging하는 IREE compiler
+  backend는 구현되지 않았다. 현재 경로는 staged `.vmfb.meta`와 `.apko` sidecar를
+  이용하는 repo-local bridge다.
+
 성공 조건:
 
 - VMFB 안의 HAL executable data가 APKO로 전달된다.
 - UMD가 APKO를 executable handle로 load한다.
-- driver가 generic submit으로 command queue를 program한다.
+- driver가 generic submit으로 command queue를 program한다. APKO VADD sidecar
+  경로는 1-packet `DISPATCH/VADD` CMDQ submit으로 연결됐고, VMFB 내부 executable
+  data와 CNN/MNIST CMDQ dispatch는 다음 범위다.
 - QBox firmware/hardware가 `DISPATCH` packet을 해석한다.
 - completion IRQ/fence가 돌아온다.
 - guest log가 `tiny_cnn_graph`, `vector_add_graph`, `SUBMIT_CNN`,
@@ -780,7 +890,12 @@ python3 scripts/check_iree_cnn_pipeline_readiness.py --repo . \
 - APKO-CNN 또는 MNIST가 generic submit으로 실행되고 fixed CNN byte-count
   branch를 사용하지 않았다는 log.
 - SMMU translated buffer와 IRQ-backed fence completion log.
-- unsupported ONNX op, APKO ABI mismatch, invalid IOVA에 대한 negative test.
+- unsupported ONNX op에 대한 negative test와 invalid IOVA 기반 fault-producing
+  retrieval positive test.
+- context ABI mismatch, stale context handle, APKO ABI mismatch, wrong entry
+  kind, wrong command size, invalid user pointer, stale executable handle, empty
+  fault record rejection, bad BO size, BO create/destroy, stale BO handle
+  rejection에 대한 negative smoke evidence.
 - `check_buildroot_arm64_lane.sh`가 compat fixed path와 generic v2 path를 별도로
   보고한다는 JSON/text evidence.
 - `Makefile`, `Kconfig`, `configs/linux` fragment가 새 driver object layout을
@@ -800,37 +915,87 @@ review를 별도로 수행해야 한다.
 ## 열린 결정 사항
 
 - APKO v0 payload를 QBox interpreter bytecode로 먼저 시작할지, Hexagon ELF64를
-  바로 payload로 둘지 결정해야 한다. 현재 구현 리스크는 APKO/interpreter first가
-  낮다.
-- memory object를 driver-owned BO로 시작할지, 초기에 dma-buf import/export까지
-  포함할지 결정해야 한다.
+  바로 payload로 둘지 결정해야 한다. 리뷰 반영 구현은 header-only APKO sidecar로
+  시작했으며, payload semantics는 아직 고정하지 않았다.
+- memory object는 driver-owned GEM SHMEM BO로 시작했다. dma-buf import/export와
+  Apollo TBU IOVA binding은 별도 단계에서 추가해야 한다.
 - queue 0 transfer / queue 1 compute split은 compatibility 목적으로만 유지하고,
   새 path에서는 IREE HAL queue affinity로 표현해야 한다.
 - fixed CNN/VADD ioctl 제거 시점은 APKO-VADD와 APKO-CNN/MNIST smoke가 모두
-  안정화된 이후로 제한한다.
+  안정화되고 negative coverage가 추가된 이후로 제한한다.
 - QBox SMMU path는 functional integration slice로만 주장해야 한다. bit-exact
   Arm SMMUv3 구현이라고 과장하지 않는다.
-- UAPI v2 ioctl number는 fixed ioctl 뒤에 append할지, 새 driver major/minor ABI
-  gate와 함께 재정렬할지 결정해야 한다. Upstream-friendly path는 existing ioctl
-  numbering을 보존하고 새 ioctl을 append하는 것이다.
-- APKO fault record를 command completion ring에 inline으로 둘지, `GET_FAULT`
-  ioctl로 분리할지 결정해야 한다. 초기 계획은 `GET_FAULT` 분리 방식이다.
-- generic v2 smoke script 이름과 artifact directory layout은 implementation 전에
-  확정해야 한다. 이 문서는 `run_iree_apko_*` 이름을 제안으로 사용한다.
+- UAPI v2 ioctl number는 append-only 방식으로 시작했다. 이후 incompatible 변경이
+  필요하면 새 ABI version 또는 driver minor gate로 분리해야 한다.
+- APKO fault record는 초기 `GET_FAULT` ioctl 분리 방식으로 시작했고,
+  현재 submit failure path는 `apollo_hexagon_wait_job()` 또는 `CMD_SUBMIT`
+  completion snapshot이 읽은 final status/result/fence를 record에 저장한다.
+  invalid IOVA command BO fault는 `GET_FAULT` clear retrieval smoke로 검증한다.
+- generic v2 smoke script 이름은 `run_iree_apko_*` 계열로 시작했다. WAIT,
+  BO binding, VMFB-embedded APKO 단계에서 artifact directory layout을 다시
+  정리해야 한다.
 
 ## 권장 작업 순서
 
-1. 기존 `apollo-hexagon.c`를 driver core, UAPI, context, BO, executable,
-   submit, fence, fault, compat module로 재구성하고 `Makefile`/`Kconfig`를
+2026-05-20 계획 리뷰 반영:
+
+- 실행 계획의 현재 상태와 최종 목표를 분리한다. 이미 구현된
+  `QUERY_CAPS`, context, BO lifecycle, BO binding metadata, `WAIT`,
+  `CMD_SUBMIT`, `GET_FAULT`, VADD binding-table copy shim은 foundation으로
+  기록하고, VMFB-embedded APKO, true hardware BO mapping, CNN/MNIST generic
+  dispatch는 남은 작업으로 유지한다.
+- 기존 device driver는 부분 확장이 아니라 v2 resource manager로 전면 재개편한다.
+  fixed CNN/VADD/DMA stress ioctl은 `apollo-hexagon-compat.c`의 transition shim으로
+  한정하고, 새 중심 경로는 context, GEM BO, SMMU-visible binding, executable
+  handle, command BO submit, wait/fence, fault record다.
+- 이번 구현 순서는 APKO VADD sidecar smoke를 더 늘리는 것이 아니라 UMD happy
+  path가 `BO_CREATE -> BO_BIND -> CMD_SUBMIT`을 사용하도록 전환하는 것이다.
+  구현된 path는 QBox shared SRAM 상수 주소에 의존하는 transitional copy shim이며,
+  실제 Apollo TBU/SMMU mapping과는 문서와 evidence에서 구분한다.
+- VMFB-embedded APKO transition slice는 staged VMFB trailer에서 APKO를 추출하는
+  repo-local ABI다. 리뷰 반영으로 APKO `header_bytes` 검증과 UMD executable unload
+  path를 추가했지만, 여전히 upstream IREE compiler target backend가 생성하는 HAL
+  executable section은 아니다.
+- `$team` 실행은 tmux leader session에서만 정상 생성으로 인정한다. 현재 Codex
+  App shell처럼 `$TMUX`가 비어 있는 환경에서는 launch command와 lane 배치만
+  제공하고, team 생성 완료로 보고하지 않는다.
+- 세부 task breakdown은
+  `doc/analysis/apollo-hexagon-dnn-kernel-task-breakdown-2026-05-20.md`에 유지한다.
+  해당 문서는 lane별 소유 파일, 선행 조건, 완료 기준, 검증 gate를 포함한다.
+
+1. 완료: APKO executable table, generic submit, `GET_FAULT`는
+   `apollo-hexagon-exec.c`, fixed compat submit/DMA stress path는
+   `apollo-hexagon-compat.c`로 behavior-preserving 분리했다. 다음 driver 작업은
+   IOMMU/command ring/fence/fault module 분리와 hardware BO mapping이다.
+2. 완료: `DRM_APOLLO_HEXAGON_QUERY_CAPS`를 추가해 UMD가 generic ABI version,
+   APKO executable format support, fence/fault capability를 질의하게 했다.
+   `CREATE_CONTEXT/DESTROY_CONTEXT`, `BO_CREATE/BO_DESTROY`, `BO_BIND/BO_UNBIND`,
+   `WAIT` foundation과 32-byte command BO `CMD_SUBMIT` foundation도 추가했다.
+   VADD path는 command BO가 input/output BO binding table을 소비하는 transitional
+   copy shim까지 갖는다. 추가 진행으로 `CMD_SUBMIT`은 2-packet command buffer를
+   받아 `LOAD_EXECUTABLE -> DISPATCH(exec-slot)`을 제출한다. 남은 v2 foundation은
+   true APKO code/payload loading과 true hardware BO mapping이다.
+3. 완료: APKO VADD generic submit은 `CMDQ_BASE/HEAD/TAIL/DOORBELL` register를
+   program하고 QBox `LOAD_EXECUTABLE -> DISPATCH(exec-slot)` packet으로 실행한다.
+   APKO VADD UMD happy path는 이제 `BO_CREATE/BO_BIND/CMD_SUBMIT`을 사용한다.
+   APKO CNN은 아직 legacy byte-count compatibility path를 사용한다.
+4. 남은 negative tests를 추가한다. 이미 추가된 범위는 APKO ABI mismatch,
+   context ABI mismatch, stale context handle, bad BO size, BO create/destroy,
+   stale BO handle, bad BO bind size, bad bind context/BO handle, unaligned bind
+   length, bad BO unbind size, BO bind/unbind, stale bind handle, bad WAIT size,
+   zero WAIT fence, bad WAIT queue, completed fence wait, future fence timeout,
+   wrong entry kind,
+   wrong input/output size,
+   invalid user pointer, wrong queue, stale executable handle, empty fault record
+   retrieval, bad command BO submit size/context/handle/size, command BO
+   `SIGNAL_FENCE` submit, invalid IOVA command BO `COPY` fault와 `GET_FAULT`
+   retrieval이다. 남은 범위는 unsupported ONNX op이다.
+5. repo contract checker와 smoke scripts에서 compat fixed path와 generic APKO
+   path를 계속 분리한다.
+6. Apollo IREE HAL UMD를 실제 IREE HAL driver로 붙이고 Buildroot rootfs staging을
    갱신한다.
-2. repo contract checker와 smoke scripts를 compat fixed path와 generic v2 path로
-   분리한다.
-3. behavior preserving refactor가 끝난 뒤 UAPI v2를 append-only 방식으로 추가한다.
-4. QBox command queue와 APKO-VADD generic dispatch를 먼저 구현한다.
-5. Apollo IREE HAL UMD를 실제 IREE HAL driver로 붙이고 Buildroot rootfs staging을
-   갱신한다.
-6. IREE/Hexagon-MLIR bridge에서 APKO v0를 VMFB HAL executable data로 package한다.
-7. VADD, CNN/MNIST 순서로 fixed ioctl smoke를 VMFB-driven APKO dispatch로
+7. IREE/Hexagon-MLIR bridge에서 APKO v0를 VMFB HAL executable data로 package한다.
+8. VADD, CNN/MNIST 순서로 fixed ioctl smoke를 VMFB-driven APKO dispatch로
    이동한다.
 
 이 구조가 요청한 `iree compile -> VMFB -> IREE runtime -> Apollo Hexagon UMD
