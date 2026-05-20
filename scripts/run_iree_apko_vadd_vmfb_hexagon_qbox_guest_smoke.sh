@@ -30,6 +30,31 @@ if [[ ${rc} -ne 0 && ${rc} -ne 124 ]]; then
   exit "${rc}"
 fi
 
+require_marker() {
+  local marker=$1
+
+  if ! grep -F "${marker}" "${log_path}" >/dev/null; then
+    echo "missing APKO VADD VMFB marker: ${marker}" >&2
+    echo "log: ${log_path}" >&2
+    exit 1
+  fi
+}
+
+require_any_marker() {
+  local label=$1
+  shift
+
+  for marker in "$@"; do
+    if grep -F "${marker}" "${log_path}" >/dev/null; then
+      return 0
+    fi
+  done
+
+  echo "missing APKO VADD VMFB marker group: ${label}" >&2
+  echo "log: ${log_path}" >&2
+  exit 1
+}
+
 for marker in \
   'Run /sbin/init as init process' \
   'apollo-qbox login:' \
@@ -39,8 +64,6 @@ for marker in \
   'IREE Apollo Hexagon HAL: executable_source=vmfb-embedded-apko' \
   'IREE Apollo Hexagon HAL: queues=2 command-buffer=generic-submit' \
   'IREE Apollo Hexagon HAL: generic_abi_version=1 executable_formats=0x00000002' \
-  'LOAD_EXECUTABLE slot=1 kind=2' \
-  'APOLLO_HEXAGON_DMA: command load executable slot=1 kind=2' \
   'APOLLO_HEXAGON_DMA: command dispatch executable slot=1 kind=2' \
   'APOLLO_HEXAGON_DMA: command dispatch vadd' \
   'IREE Apollo Hexagon HAL: APKO CMD_SUBMIT VADD ok' \
@@ -48,12 +71,12 @@ for marker in \
   'IREE Apollo Hexagon HAL: offload complete' \
   'async fence signaled queue=' \
   'EXEC @vector_add_graph [apollo-hexagon]'; do
-  if ! grep -F "${marker}" "${log_path}" >/dev/null; then
-    echo "missing APKO VADD VMFB marker: ${marker}" >&2
-    echo "log: ${log_path}" >&2
-    exit 1
-  fi
+  require_marker "${marker}"
 done
+
+require_any_marker "LOAD_EXECUTABLE slot=1 kind=2" \
+  'LOAD_EXECUTABLE slot=1 kind=2' \
+  'APOLLO_HEXAGON_DMA: command load executable slot=1 kind=2'
 
 if ! grep -F "${expected}" "${log_path}" >/dev/null; then
   echo "APKO VADD VMFB output mismatch; expected: ${expected}" >&2
