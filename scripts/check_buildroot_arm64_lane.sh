@@ -104,6 +104,7 @@ require_executable "${repo_root}/scripts/run_iree_apko_vadd_hexagon_qbox_guest_s
 require_executable "${repo_root}/scripts/run_iree_apko_vadd_vmfb_hexagon_qbox_guest_smoke.sh" "VMFB-embedded APKO vector-add smoke script"
 require_executable "${repo_root}/scripts/run_iree_apko_cnn_hexagon_qbox_guest_smoke.sh" "generic APKO tiny-CNN smoke script"
 require_executable "${repo_root}/scripts/run_iree_apko_negative_hexagon_qbox_guest_smoke.sh" "generic APKO negative smoke script"
+require_executable "${repo_root}/scripts/check_apko_vmfb_verification_lane.py" "APKO VMFB verification lane checker"
 require_executable "${repo_root}/scripts/run_qbox_iommu_runtime_test.sh" "QBox IOMMU runtime test smoke script"
 
 require_grep '^BR2_aarch64=y$' "${defconfig}" "AArch64 target"
@@ -363,6 +364,8 @@ require_grep 'run_vector_add_vmfb_apko_hexagon_guest\.sh' "${repo_root}/scripts/
 require_grep 'executable_source=vmfb-embedded-apko' "${repo_root}/scripts/run_iree_apko_vadd_vmfb_hexagon_qbox_guest_smoke.sh" "VMFB-embedded APKO VADD smoke marker"
 require_grep 'APKO dispatch complete' "${repo_root}/scripts/run_iree_apko_cnn_hexagon_qbox_guest_smoke.sh" "generic APKO CNN smoke completion marker"
 require_grep 'APKO negative ioctl coverage completed' "${repo_root}/scripts/run_iree_apko_negative_hexagon_qbox_guest_smoke.sh" "generic APKO negative smoke completion marker"
+require_grep 'unsupported_onnx_negative_tool_gate' "${repo_root}/scripts/check_apko_vmfb_verification_lane.py" "APKO VMFB verification lane unsupported-ONNX tool gate"
+require_grep 'repo_local_transition_ready' "${repo_root}/scripts/check_apko_vmfb_verification_lane.py" "APKO VMFB verification lane classification"
 require_grep 'DRM_IOCTL_APOLLO_HEXAGON_SUBMIT_CNN' "${board}/guest-tools/apollo_hexagon_uapi_guest.h" "Apollo IREE Hexagon HAL submit ABI"
 require_grep 'DRM_IOCTL_APOLLO_HEXAGON_DMA_STRESS' "${board}/guest-tools/apollo_hexagon_uapi_guest.h" "Apollo IREE Hexagon HAL DMA stress ABI"
 require_grep 'DRM_IOCTL_APOLLO_HEXAGON_SUBMIT_VADD' "${board}/guest-tools/apollo_hexagon_uapi_guest.h" "Apollo IREE Hexagon vector-add submit ABI"
