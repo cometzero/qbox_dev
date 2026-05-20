@@ -802,6 +802,7 @@ void apollo_hexagon_unload_executable(struct apollo_hexagon_executable *exe)
 	free((void *)exe->apko_data);
 	exe->apko_data = NULL;
 	exe->apko_data_size = 0;
+	exe->apko_size = 0;
 	exe->apko_embedded = 0;
 }
 

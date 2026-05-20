@@ -136,6 +136,22 @@ static int parse_args(int argc, char **argv, struct options *opts)
 	return 0;
 }
 
+static void close_apollo_executable(struct apollo_hexagon_executable *exe)
+{
+	apollo_iree_hal_registry_unload_plugin();
+	apollo_hexagon_unload_executable(exe);
+}
+
+static void close_apollo_device(
+	const struct apollo_iree_hal_device *device,
+	struct apollo_hexagon_queue *queue,
+	struct apollo_hexagon_executable *exe)
+{
+	if (device && device->ops && device->ops->queue_close)
+		device->ops->queue_close(queue);
+	close_apollo_executable(exe);
+}
+
 int main(int argc, char **argv)
 {
 	const struct apollo_iree_hal_device *device;
@@ -194,7 +210,7 @@ int main(int argc, char **argv)
 						 sizeof(error));
 	if (ret) {
 		fprintf(stderr, "%s: %s\n", error, strerror(-ret));
-		apollo_hexagon_unload_executable(&exe);
+		close_apollo_executable(&exe);
 		return 1;
 	}
 
@@ -237,8 +253,7 @@ int main(int argc, char **argv)
 			sizeof(error));
 		if (ret) {
 			fprintf(stderr, "%s: %s\n", error, strerror(-ret));
-			device->ops->queue_close(&queue);
-			apollo_hexagon_unload_executable(&exe);
+			close_apollo_device(device, &queue, &exe);
 			return 1;
 		}
 		printf("IREE Apollo Hexagon HAL: SG DMA stress ok queue=%u bytes=%u segments=%u checksum=0x%08x\n",
@@ -249,8 +264,7 @@ int main(int argc, char **argv)
 	}
 
 	if (opts.stress_only) {
-		device->ops->queue_close(&queue);
-		apollo_hexagon_unload_executable(&exe);
+		close_apollo_device(device, &queue, &exe);
 		return 0;
 	}
 
@@ -282,12 +296,10 @@ int main(int argc, char **argv)
 		}
 		if (ret) {
 			fprintf(stderr, "%s: %s\n", error, strerror(-ret));
-			device->ops->queue_close(&queue);
-			apollo_hexagon_unload_executable(&exe);
+			close_apollo_device(device, &queue, &exe);
 			return 1;
 		}
-		device->ops->queue_close(&queue);
-		apollo_hexagon_unload_executable(&exe);
+		close_apollo_device(device, &queue, &exe);
 
 		printf("IREE Apollo Hexagon HAL: command buffer submitted\n");
 		printf("IREE Apollo Hexagon HAL: offload complete queue=%u status=0x%08x\n",
@@ -321,12 +333,10 @@ int main(int argc, char **argv)
 	}
 	if (ret) {
 		fprintf(stderr, "%s: %s\n", error, strerror(-ret));
-		device->ops->queue_close(&queue);
-		apollo_hexagon_unload_executable(&exe);
+		close_apollo_device(device, &queue, &exe);
 		return 1;
 	}
-	device->ops->queue_close(&queue);
-	apollo_hexagon_unload_executable(&exe);
+	close_apollo_device(device, &queue, &exe);
 
 	printf("IREE Apollo Hexagon HAL: command buffer submitted\n");
 	printf("IREE Apollo Hexagon HAL: offload complete queue=%u status=0x%08x\n",

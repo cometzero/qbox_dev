@@ -161,6 +161,15 @@ static int apollo_iree_hal_registry_load_plugin(const char *plugin_path,
 	return 0;
 }
 
+void apollo_iree_hal_registry_unload_plugin(void)
+{
+	if (apollo_dynamic_plugin_handle)
+		dlclose(apollo_dynamic_plugin_handle);
+	apollo_dynamic_plugin_handle = NULL;
+	apollo_dynamic_device.ops = &apollo_registry_ops;
+	apollo_dynamic_device.plugin_path = NULL;
+}
+
 const struct apollo_iree_hal_device *apollo_iree_hal_registry_lookup(
 	const char *device_name, const char *plugin_path, char *error,
 	size_t error_len)
