@@ -65,6 +65,7 @@ for marker in \
   'IREE Apollo Hexagon HAL: queues=2 command-buffer=generic-submit' \
   'IREE Apollo Hexagon HAL: generic_abi_version=1 executable_formats=0x00000002' \
   'APOLLO_HEXAGON_DMA: command load payload slot=1 opcode=2' \
+  'APOLLO_HEXAGON_DMA: command load code slot=1 offset=0 words=1 entry=65538' \
   'code_words=1' \
   'code_entry=65538' \
   'APOLLO_HEXAGON_DMA: command dispatch executable slot=1 kind=2' \
@@ -84,6 +85,10 @@ require_any_marker "LOAD_EXECUTABLE slot=1 kind=2" \
 require_any_marker "LOAD_PAYLOAD slot=1 opcode=2" \
   'LOAD_PAYLOAD slot=1 opcode=2' \
   'APOLLO_HEXAGON_DMA: command load payload slot=1 opcode=2'
+
+require_any_marker "LOAD_CODE slot=1 entry=65538" \
+  'LOAD_CODE slot=1 offset=0 words=1 entry_word=65538' \
+  'APOLLO_HEXAGON_DMA: command load code slot=1 offset=0 words=1 entry=65538'
 
 if ! grep -F "${expected}" "${log_path}" >/dev/null; then
   echo "APKO VADD VMFB output mismatch; expected: ${expected}" >&2

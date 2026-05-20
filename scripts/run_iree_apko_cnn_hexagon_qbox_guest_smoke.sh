@@ -41,6 +41,7 @@ for marker in \
   'IREE Apollo Hexagon HAL: queues=2 command-buffer=generic-submit' \
   'IREE Apollo Hexagon HAL: generic_abi_version=1 executable_formats=0x00000002' \
   'APOLLO_HEXAGON_DMA: command load payload slot=1 opcode=1' \
+  'APOLLO_HEXAGON_DMA: command load code slot=1 offset=0 words=1 entry=65537' \
   'code_words=1' \
   'code_entry=65537' \
   'APOLLO_HEXAGON_DMA: command dispatch executable slot=1 kind=1' \
@@ -69,6 +70,15 @@ if ! grep -F 'LOAD_PAYLOAD slot=1 opcode=1' "${log_path}" >/dev/null && \
    ! grep -F 'APOLLO_HEXAGON_DMA: command load payload slot=1 opcode=1' \
       "${log_path}" >/dev/null; then
   echo "missing APKO CNN marker: LOAD_PAYLOAD slot=1 opcode=1" >&2
+  echo "log: ${log_path}" >&2
+  exit 1
+fi
+
+if ! grep -F 'LOAD_CODE slot=1 offset=0 words=1 entry_word=65537' \
+      "${log_path}" >/dev/null && \
+   ! grep -F 'APOLLO_HEXAGON_DMA: command load code slot=1 offset=0 words=1 entry=65537' \
+      "${log_path}" >/dev/null; then
+  echo "missing APKO CNN marker: LOAD_CODE slot=1 entry=65537" >&2
   echo "log: ${log_path}" >&2
   exit 1
 fi

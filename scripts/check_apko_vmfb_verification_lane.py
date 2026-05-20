@@ -134,6 +134,7 @@ def repo_checks(repo: Path) -> list[Check]:
                 "command-buffer=generic-submit",
                 "command load executable slot=1 kind=2",
                 "command load payload slot=1 opcode=2",
+                "command load code slot=1 offset=0 words=1 entry=65538",
                 "code_words=1",
                 "code_entry=65538",
                 "command BO bound VADD dispatch",
@@ -142,7 +143,7 @@ def repo_checks(repo: Path) -> list[Check]:
                 "4xf32=11 22 33 44",
             ),
         ),
-        "VADD smoke requires LOAD_EXECUTABLE plus bound DISPATCH/VADD command BO markers",
+        "VADD smoke requires LOAD_EXECUTABLE, LOAD_PAYLOAD, LOAD_CODE, and bound DISPATCH/VADD command BO markers",
     )
     add(
         checks,
@@ -153,6 +154,7 @@ def repo_checks(repo: Path) -> list[Check]:
                 "command-buffer=generic-submit",
                 "generic_abi_version=1",
                 "command load payload slot=1 opcode=1",
+                "command load code slot=1 offset=0 words=1 entry=65537",
                 "code_words=1",
                 "code_entry=65537",
                 "command dispatch executable slot=1 kind=1",
@@ -161,7 +163,7 @@ def repo_checks(repo: Path) -> list[Check]:
                 "1x1x2x2xf32=[[[54 63][90 99]]]",
             ),
         ),
-        "CNN smoke uses the same command BO path as VMFB-embedded APKO model dispatch",
+        "CNN smoke uses the same LOAD_PAYLOAD plus LOAD_CODE command BO path as VMFB-embedded APKO model dispatch",
     )
     add(
         checks,
@@ -172,6 +174,7 @@ def repo_checks(repo: Path) -> list[Check]:
                 "command-buffer=generic-submit",
                 "generic_abi_version=1",
                 "command load payload slot=1 opcode=3",
+                "command load code slot=1 offset=0 words=1 entry=65539",
                 "code_words=1",
                 "code_entry=65539",
                 "command dispatch executable slot=1 kind=3",
@@ -180,7 +183,7 @@ def repo_checks(repo: Path) -> list[Check]:
                 "1x10xf32=[0 1 2 3 4 5 6 7 8 9]",
             ),
         ),
-        "MNIST smoke uses APKO CMD_SUBMIT plus executable-slot dispatch and matches the host ONNX Flatten+Gemm output",
+        "MNIST smoke uses APKO CMD_SUBMIT plus LOAD_CODE-gated executable-slot dispatch and matches the host ONNX Flatten+Gemm output",
     )
     add(
         checks,

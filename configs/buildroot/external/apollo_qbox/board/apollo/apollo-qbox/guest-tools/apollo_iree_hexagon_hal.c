@@ -660,7 +660,16 @@ static int apollo_hexagon_queue_submit_apko_cmdq(
 	packet[4] = payload_opcode;
 	packet[5] = APOLLO_HEXAGON_APKO_PAYLOAD_DESCRIPTOR_WORDS;
 	packet[6] = code_words;
-	packet[7] = entry_word;
+	packet[7] = 0;
+	packet += APOLLO_HEXAGON_CMDQ_PACKET_WORDS;
+	packet[0] = APOLLO_HEXAGON_CMDQ_OPCODE_LOAD_CODE;
+	packet[1] = exec_slot;
+	packet[2] = APOLLO_HEXAGON_APKO_CODE_MAGIC;
+	packet[3] = APOLLO_HEXAGON_APKO_CODE_VERSION;
+	packet[4] = 0;
+	packet[5] = 1;
+	packet[6] = entry_word;
+	packet[7] = 0;
 	packet += APOLLO_HEXAGON_CMDQ_PACKET_WORDS;
 	packet[0] = APOLLO_HEXAGON_CMDQ_OPCODE_DISPATCH;
 	packet[1] = APOLLO_HEXAGON_CMDQ_DISPATCH_EXEC_SLOT_FLAG | exec_slot;

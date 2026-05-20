@@ -65,6 +65,7 @@ for marker in \
   'IREE Apollo Hexagon HAL: generic_abi_version=1 executable_formats=0x00000002' \
   'max_bindings_per_dispatch=2' \
   'APOLLO_HEXAGON_DMA: command load payload slot=1 opcode=3' \
+  'APOLLO_HEXAGON_DMA: command load code slot=1 offset=0 words=1 entry=65539' \
   'code_words=1' \
   'code_entry=65539' \
   'APOLLO_HEXAGON_DMA: command dispatch executable slot=1 kind=3' \
@@ -87,6 +88,10 @@ require_any_marker "LOAD_EXECUTABLE slot=1 kind=3" \
 require_any_marker "LOAD_PAYLOAD slot=1 opcode=3" \
   'LOAD_PAYLOAD slot=1 opcode=3' \
   'APOLLO_HEXAGON_DMA: command load payload slot=1 opcode=3'
+
+require_any_marker "LOAD_CODE slot=1 entry=65539" \
+  'LOAD_CODE slot=1 offset=0 words=1 entry_word=65539' \
+  'APOLLO_HEXAGON_DMA: command load code slot=1 offset=0 words=1 entry=65539'
 
 require_any_marker "bound MNIST dispatch" \
   'command BO bound MNIST dispatch' \

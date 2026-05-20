@@ -519,11 +519,13 @@ Cross-lane contract gates:
   ABI 변경이 필요하면 worker-3이 guest-tools/stage script 계약을 갱신하고,
   worker-2가 negative smoke를 추가한다.
 - 2026-05-21 리뷰 반영 후 command ABI는
-  `LOAD_EXECUTABLE -> LOAD_PAYLOAD -> DISPATCH(exec-slot)` 3-packet 계약이다.
+  `LOAD_EXECUTABLE -> LOAD_PAYLOAD -> LOAD_CODE -> DISPATCH(exec-slot)` 4-packet 계약이다.
   `LOAD_EXECUTABLE`은 executable slot과 tensor geometry만 로드하고,
   APKO payload opcode는 APKO 파일의 `PAYL` descriptor를 UMD가 읽어
-  `LOAD_PAYLOAD` packet으로 명시적으로 전달한다. QBox는 `LOAD_PAYLOAD`가 없는
-  executable-slot dispatch를 malformed packet으로 처리해야 한다.
+  `LOAD_PAYLOAD` packet으로 명시적으로 전달한다. APKO code entry instruction은
+  `CODE` descriptor를 UMD가 읽어 `LOAD_CODE` packet으로 별도 전달한다. QBox는
+  `LOAD_PAYLOAD` 또는 `LOAD_CODE`가 없는 executable-slot dispatch를 malformed packet으로
+  처리해야 한다.
 - worker-2는 fixed compatibility path와 generic v2 path를 반드시 별도 PASS/FAIL로
   기록한다. `SUBMIT_CNN`/`SUBMIT_VADD` marker가 generic smoke 성공 근거로 섞이면
   regression으로 본다.
@@ -560,23 +562,25 @@ Cross-lane contract gates:
 이번 반영은 full APKO interpreter나 upstream IREE HAL executable packaging 완료가
 아니라, 기존 entry-kind 기반 자동 payload 선택을 제거하는 중간 단계다.
 
-- Linux/guest UAPI의 `APOLLO_HEXAGON_CMDQ_SUBMIT_MAX_PACKETS`를 3으로 늘리고
-  `APOLLO_HEXAGON_CMDQ_OPCODE_LOAD_PAYLOAD` 및 APKO `PAYL` descriptor 상수를
-  추가했다.
-- Linux driver `CMD_SUBMIT` scanner는 valid `LOAD_PAYLOAD`를 본 경우에만
-  executable-slot dispatch를 BO binding copy shim 대상으로 인정한다.
+- Linux/guest UAPI의 `APOLLO_HEXAGON_CMDQ_SUBMIT_MAX_PACKETS`를 4로 늘리고
+  `APOLLO_HEXAGON_CMDQ_OPCODE_LOAD_PAYLOAD`, `APOLLO_HEXAGON_CMDQ_OPCODE_LOAD_CODE`,
+  APKO `PAYL`/`CODE` descriptor 상수를 추가했다.
+- Linux driver `CMD_SUBMIT` scanner는 valid `LOAD_PAYLOAD`와 `LOAD_CODE`를 모두 본
+  경우에만 executable-slot dispatch를 BO binding copy shim 대상으로 인정한다.
 - QBox `apollo_hexagon_dma`는 `LOAD_EXECUTABLE`에서 payload opcode를 더 이상
-  자동 생성하지 않는다. `LOAD_PAYLOAD`가 없거나 executable kind와 payload opcode가
-  맞지 않으면 malformed fault를 낸다.
-- guest HAL은 staged APKO/VMFB-embedded APKO에서 `PAYL` descriptor를 읽고,
-  `LOAD_EXECUTABLE -> LOAD_PAYLOAD -> DISPATCH(exec-slot)` command BO를 제출한다.
+  자동 생성하지 않는다. `LOAD_PAYLOAD` 또는 `LOAD_CODE`가 없거나 payload opcode와
+  code entry kind가 맞지 않으면 malformed fault를 낸다.
+- guest HAL은 staged APKO/VMFB-embedded APKO에서 `PAYL`/`CODE` descriptor를 읽고,
+  `LOAD_EXECUTABLE -> LOAD_PAYLOAD -> LOAD_CODE -> DISPATCH(exec-slot)` command BO를
+  제출한다.
   descriptor가 없는 기존 APKO v0 artifact는 ABI 호환을 위해 legacy submit path로
   fallback하고, descriptor가 존재하지만 malformed이면 오류로 처리한다.
 - VADD, CNN, MNIST staging script는 48-byte APKO header 뒤에 16-byte `PAYL`
   descriptor를 붙였고, 이어지는 추가 slice에서 `CODE` descriptor와 최소 code word를
   붙이도록 확장했다.
-- negative coverage는 bad `LOAD_PAYLOAD` fault와 executable-slot-without-payload
-  component test를 추가했다.
+- negative coverage는 bad `LOAD_PAYLOAD`, bad `LOAD_CODE`,
+  executable-slot-without-payload, executable-slot-without-code component test를
+  추가했다.
 
 ## 2026-05-21 APKO CODE descriptor 진행 결과
 
@@ -592,14 +596,14 @@ Cross-lane contract gates:
   instruction stream은 아니다.
 - guest HAL은 `PAYL`만 있는 artifact를 malformed로 보고, `CODE` word count와
   첫 code word의 `MODEL_DISPATCH` opcode 및 payload kind field가 맞을 때만
-  `LOAD_PAYLOAD`를 제출한다.
+  `LOAD_PAYLOAD`와 `LOAD_CODE`를 제출한다.
 - Linux driver와 QBox command queue는 `LOAD_PAYLOAD` packet의 code word count와
-  encoded entry instruction을 검증한다. QBox component test는 missing code words를
-  malformed fault로 확인한다.
+  `LOAD_CODE` packet의 encoded entry instruction을 검증한다. QBox component test는
+  missing code words와 missing `LOAD_CODE`를 malformed fault로 확인한다.
 - 추가 진행으로 Linux driver와 QBox model은 executable-slot dispatch kind를
   `LOAD_EXECUTABLE.entry_kind`에서 자동 선택하지 않고, 검증된 `CODE` entry
   instruction을 decode해 실행 선택 기준으로 사용한다. QBox component test는 bad
-  code entry를 별도 malformed fault로 확인한다.
+  code entry를 별도 malformed `LOAD_CODE` fault로 확인한다.
 
 남은 gap은 그대로 유지한다.
 

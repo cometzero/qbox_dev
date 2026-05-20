@@ -1033,16 +1033,16 @@ review를 별도로 수행해야 한다.
 2026-05-21 리뷰 추가 반영:
 
 - command queue APKO 실행 계약을
-  `LOAD_EXECUTABLE -> LOAD_PAYLOAD -> DISPATCH(exec-slot)`으로 갱신했다.
+  `LOAD_EXECUTABLE -> LOAD_PAYLOAD -> LOAD_CODE -> DISPATCH(exec-slot)`으로 갱신했다.
   `LOAD_EXECUTABLE`은 slot, executable format, tensor geometry만 담고,
   payload opcode는 APKO byte stream의 `PAYL` descriptor를 UMD가 읽어
   `LOAD_PAYLOAD` packet으로 별도 전달한다.
 - QBox model은 더 이상 `entry_kind`에서 payload opcode를 자동 파생하지 않는다.
-  payload packet이 없거나 executable kind와 payload opcode가 다르면 malformed fault를
-  발생시킨다.
-- Linux driver scanner도 `LOAD_PAYLOAD`를 본 slot만 bound dispatch copy shim 대상으로
-  인정한다. 따라서 command BO의 payload load 순서가 driver, UMD, QBox 모두에서
-  명시적으로 검증된다.
+  payload packet 또는 code packet이 없거나 payload opcode와 code entry kind가 다르면
+  malformed fault를 발생시킨다.
+- Linux driver scanner도 `LOAD_PAYLOAD`와 `LOAD_CODE`를 모두 본 slot만 bound
+  dispatch copy shim 대상으로 인정한다. 따라서 command BO의 payload/code load 순서가
+  driver, UMD, QBox 모두에서 명시적으로 검증된다.
 - 이 변경은 “실제 APKO code blob 실행”이 아니라 “metadata-derived built-in stub
   dispatch 제거” 단계다. 다음 단계는 payload descriptor 뒤에 실제 code/data section을
   싣고, QBox/driver가 executable BO 또는 instruction stream으로 이를 소비하도록
@@ -1052,11 +1052,12 @@ review를 별도로 수행해야 한다.
 
 - APKO byte stream은 이제 `PAYL` descriptor 뒤에 `CODE` descriptor와 최소 code
   word를 포함한다. UMD는 `PAYL` opcode, `CODE` word count, 첫 code word의
-  `MODEL_DISPATCH` opcode와 model kind field를 검증하고, `LOAD_PAYLOAD` packet의
-  reserved word에 code word count와 encoded entry instruction을 전달한다.
-- Linux driver scanner와 QBox command queue는 `LOAD_PAYLOAD`의 code word count가
-  0이거나 entry instruction이 `MODEL_DISPATCH | payload-kind`로 decode되지 않으면
-  malformed payload로 처리한다.
+  `MODEL_DISPATCH` opcode와 model kind field를 검증하고, `LOAD_PAYLOAD` 뒤에
+  별도 `LOAD_CODE` packet을 제출한다.
+- Linux driver scanner와 QBox command queue는 `LOAD_PAYLOAD`로 payload descriptor를
+  로드한 뒤 `LOAD_CODE`가 `MODEL_DISPATCH | payload-kind`로 decode될 때만
+  executable-slot dispatch를 허용한다. `LOAD_CODE`가 없거나 payload opcode와 code
+  entry가 맞지 않으면 malformed packet으로 처리한다.
 - 이 단계는 아직 full APKO instruction stream을 해석하지 않는다. 다만 "opcode
   descriptor만 전달"하던 상태에서 APKO code section의 첫 instruction을 decode해
   command packet binding을 검증하는 중간 ABI로 전진했다. 남은 단계는 이 code section을
@@ -1071,9 +1072,9 @@ review를 별도로 수행해야 한다.
   switch하지 않고 `CODE` entry instruction의 opcode/model field를 decode한다. 현재
   instruction은 아직 VADD/CNN/MNIST built-in model-kernel selector를 호출하지만,
   실행 의미가 APKO code section에서 온다는 계약을 명시적으로 만든다.
-- guest HAL과 smoke marker는 `code_words`와 함께 `code_entry`를 출력/검증하고,
-  QBox component test는 payload opcode와 code entry가 다른 경우를 malformed
-  `LOAD_PAYLOAD`로 확인한다.
+- guest HAL과 smoke marker는 `code_words`, `code_entry`, QBox `command load code`
+  marker를 출력/검증하고, QBox component test는 payload opcode와 code entry가 다른
+  경우를 malformed `LOAD_CODE`로 확인한다.
 
 이 구조가 요청한 `iree compile -> VMFB -> IREE runtime -> Apollo Hexagon UMD
 -> Apollo Hexagon driver -> Apollo Hexagon hardware` 경로와 가장 잘 맞는다.
