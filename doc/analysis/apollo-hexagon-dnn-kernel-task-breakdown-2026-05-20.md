@@ -17,11 +17,13 @@ iree compile -> VMFB -> IREE runtime -> Apollo Hexagon UMD
 현재 구현은 APKO v0 sidecar/VMFB trailer, executable handle, generic submit,
 `GET_FAULT`, `QUERY_CAPS`, generic context, GEM SHMEM BO lifecycle, BO binding
 metadata foundation, 64-byte command BO `CMD_SUBMIT`, 그리고 VADD/CNN/MNIST
-`LOAD_EXECUTABLE -> DISPATCH(exec-slot)` smoke 준비, MNIST-shaped
+`LOAD_EXECUTABLE -> LOAD_PAYLOAD -> LOAD_CODE -> DISPATCH(exec-slot)` smoke
+준비, MNIST-shaped
 `ONNX -> MLIR -> host/AArch64 VMFB` compile evidence까지 진행된 상태다. 그러나
 아직 DNN kernel 실행 구조의 최종 상태는 아니다. 남은 핵심은 BO binding을 실제
-hardware/SMMU mapping에 연결하고, full APKO code/payload interpreter와 upstream
-IREE VMFB HAL executable packaging을 완성하는 것이다.
+hardware/SMMU mapping에 연결하고, 2-word transition mini-program을 넘어서는
+full APKO code/payload interpreter와 upstream IREE VMFB HAL executable packaging을
+완성하는 것이다.
 
 ## 계획 리뷰 반영 요약
 
@@ -627,3 +629,21 @@ Cross-lane contract gates:
   거친다. true hardware BO/SMMU/TBU page mapping은 별도 작업이다.
 - VMFB trailer는 repo-local transition ABI다. upstream IREE HAL executable section
   packaging 완료로 주장하지 않는다.
+
+## 2026-05-21 APKO CODE mini-program 실행 리뷰 반영
+
+이번 추가 반영은 `LOAD_CODE`를 단순 metadata 검증으로만 남기지 않고, QBox
+`apollo_hexagon_dma`가 executable slot에 저장한 2-word APKO `CODE` program을
+dispatch 시점에 순차 실행하도록 만든다.
+
+- QBox model은 `LOAD_CODE` packet의 `MODEL_DISPATCH | payload-kind`,
+  `APKO_CODE_OP_END` 두 word를 executable slot에 저장한다.
+- executable-slot dispatch는 저장된 code program을 `pc=0`, `pc=1` 순서로 해석하고
+  `APOLLO_HEXAGON_DMA: APKO code program dispatch ...`,
+  `APOLLO_HEXAGON_DMA: APKO code program end ...` marker를 남긴 뒤 model-kernel을
+  호출한다.
+- unsupported instruction과 missing `END`는 component test와 smoke/checker 계약에
+  남겼다.
+- 이 단계는 APKO `CODE` section을 실제 실행 입력으로 소비하기 시작한 것이지만,
+  아직 일반 Hexagon instruction blob, executable BO/code DMA, upstream IREE HAL
+  executable packaging을 실행하는 것은 아니다.

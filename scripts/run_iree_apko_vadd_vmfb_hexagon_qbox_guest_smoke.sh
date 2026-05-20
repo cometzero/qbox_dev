@@ -66,6 +66,8 @@ for marker in \
   'IREE Apollo Hexagon HAL: generic_abi_version=1 executable_formats=0x00000002' \
   'APOLLO_HEXAGON_DMA: command load payload slot=1 opcode=2' \
   'APOLLO_HEXAGON_DMA: command load code slot=1 offset=0 words=2 entry=65538' \
+  'APOLLO_HEXAGON_DMA: APKO code program dispatch pc=0 opcode=2' \
+  'APOLLO_HEXAGON_DMA: APKO code program end pc=1' \
   'code_words=2' \
   'code_entry=65538' \
   'code_end=131072' \

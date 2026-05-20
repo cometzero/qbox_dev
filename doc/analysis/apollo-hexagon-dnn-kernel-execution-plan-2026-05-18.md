@@ -222,6 +222,14 @@ UMD, Linux command BO validator, QBox DMA model이 모두 이 terminator를 확�
 이것은 아직 실제 Hexagon instruction blob 실행은 아니지만, APKO `CODE` section을
 검증 가능한 instruction stream으로 소비하기 시작한 단계다.
 
+2026-05-21 추가 리뷰 반영으로 QBox DMA model은 이 2-word `CODE` program을
+executable slot에 저장한 뒤 dispatch 시점에 순차 실행한다. smoke 계약은
+`APKO code program dispatch pc=0 opcode=<kind>`와
+`APKO code program end pc=1` marker를 요구한다. 이로써 QBox 경로는
+`LOAD_CODE` metadata를 재검증하는 수준에서 벗어나 transition APKO mini-program을
+실제 dispatch selector로 소비하지만, 여전히 full Hexagon instruction execution이나
+upstream IREE HAL executable packaging 완료는 아니다.
+
 ## Apollo IREE HAL UMD 재구성
 
 현재 guest shim은 `iree-run-module` 일부 option을 직접 parsing하고 fixed ioctl을
@@ -1091,6 +1099,11 @@ review를 별도로 수행해야 한다.
   `command load code` marker를 출력/검증하고, QBox component test는 payload opcode와
   code entry가 다른 경우와 `APKO_CODE_OP_END`가 없는 경우를 malformed `LOAD_CODE`로
   확인한다.
+- 추가 QBox 리뷰 반영으로 `LOAD_CODE` 두 word는 executable slot에 저장되고,
+  executable-slot dispatch 시 `MODEL_DISPATCH`, `END` 순서로 실행된다. smoke와
+  readiness checker는 `APKO code program dispatch pc=0 opcode=<kind>` 및
+  `APKO code program end pc=1` marker를 요구한다. unsupported instruction은
+  malformed `LOAD_CODE` negative component test로 남긴다.
 
 이 구조가 요청한 `iree compile -> VMFB -> IREE runtime -> Apollo Hexagon UMD
 -> Apollo Hexagon driver -> Apollo Hexagon hardware` 경로와 가장 잘 맞는다.
