@@ -64,6 +64,7 @@ def repo_checks(repo: Path) -> list[Check]:
     checks: list[Check] = []
     scripts = repo / "scripts"
     verification = repo / "doc/verification/qbox-apollo-hexagon-apko-generic-submit-2026-05-18.md"
+    apko_vmfb_lane_report = repo / "doc/verification/apko-vmfb-verification-lane-2026-05-20.md"
     buildroot_lane = scripts / "check_buildroot_arm64_lane.sh"
     readiness = scripts / "check_iree_cnn_pipeline_readiness.py"
     vadd = scripts / "run_iree_apko_vadd_hexagon_qbox_guest_smoke.sh"
@@ -297,6 +298,60 @@ def repo_checks(repo: Path) -> list[Check]:
             ),
         ),
         "verification report records PASS evidence and remaining non-overclaimed blockers",
+    )
+    add(
+        checks,
+        "vmfb_trailer_not_upstream_hal_packaging_contract",
+        require_markers(
+            apko_vmfb_lane_report,
+            (
+                "repo-local APKO",
+                "trailer",
+                "upstream IREE target backend packaging",
+                "PASS 범위 밖",
+            ),
+        )
+        and require_markers(
+            repo / "doc/analysis/apollo-hexagon-dnn-kernel-execution-plan-2026-05-18.md",
+            (
+                "IREE compiler가 HAL executable section에 APKO를 packaging했다는 뜻이 아니며",
+                "full APKO code/payload interpreter",
+                "upstream VMFB HAL executable packaging",
+                "functional integration slice",
+            ),
+        )
+        and require_markers(
+            repo / "doc/analysis/apollo-hexagon-dnn-kernel-task-breakdown-2026-05-20.md",
+            (
+                "true hardware BO",
+                "mapping",
+                "full APKO payload execution",
+                "upstream IREE packaging",
+                "functional integration slice",
+            ),
+        ),
+        "contract language keeps repo-local VMFB trailer separate from upstream HAL executable packaging, full APKO payload execution, and bit-exact SMMUv3 claims",
+    )
+    add(
+        checks,
+        "unsupported_payload_and_tooling_classification_contract",
+        require_markers(
+            repo / "doc/analysis/apollo-hexagon-dnn-kernel-task-breakdown-2026-05-20.md",
+            (
+                "unsupported ONNX op coverage",
+                "blocked_missing_tool",
+                "tool 미설치면 `blocked_missing_tool`",
+            ),
+        )
+        and require_markers(
+            repo / "doc/verification/apollo-hexagon-mnist-apko-review-2026-05-21.md",
+            (
+                "full APKO code/payload execution",
+                "upstream IREE VMFB HAL executable section packaging",
+                "host-side IREE/ONNX tooling",
+            ),
+        ),
+        "unsupported payload/tooling blockers remain explicit instead of being folded into VMFB trailer PASS",
     )
     add(
         checks,

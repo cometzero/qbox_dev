@@ -52,6 +52,22 @@ SUMMARY {"blocked_missing_tool": 1, "pass": 10}
 CLASSIFICATION {"apko_vmfb_transition": "repo_local_transition_ready", "unsupported_onnx_negative": "blocked_missing_tool"}
 ```
 
+
+## Contract guardrails
+
+- `repo_local_transition_ready`는 staged VMFB 뒤에 붙인 repo-local APKO
+  trailer를 guest HAL loader가 안전하게 찾고 `CMD_SUBMIT`으로 전달한다는
+  뜻이다. upstream IREE target backend가 HAL executable section에 APKO를
+  packaging했다는 뜻이 아니다.
+- APKO VADD/CNN/MNIST smoke는 generic command BO, executable slot, BO binding
+  copy shim, fault retrieval 계약을 검증한다. full APKO code/payload
+  interpreter 또는 trained MNIST graph execution 완료로 분류하지 않는다.
+- QBox SMMU 관련 증거는 Apollo functional integration slice로만 유지한다.
+  bit-exact Arm SMMUv3 completion claim으로 승격하지 않는다.
+- unsupported ONNX/payload coverage는 host `iree-import-onnx`/`iree-compile`
+  tooling이 없으면 `blocked_missing_tool`이며, 도구가 준비된 뒤 별도
+  negative compile rejection evidence로 갱신한다.
+
 ## blocker 분류
 
 - `unsupported_onnx_negative_tool_gate`: host에 `iree-import-onnx`와
